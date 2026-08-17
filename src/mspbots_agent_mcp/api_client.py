@@ -2,10 +2,12 @@ from typing import Any
 
 import httpx
 
-# The Agent Platform capabilities API is reachable at this path prefix:
-# "https://<host>/apps/mb-platform-agent/api/capabilities/<endpoint>".
+# The Agent Platform app is mounted at this path prefix on the tenant host:
+# "https://<host>/apps/mb-platform-agent/<sub-path>".
 # X-MSP-Host only carries the bare host; do not hardcode the prefix elsewhere.
-_API_PREFIX = "/apps/mb-platform-agent/api/capabilities"
+# Callers pass the full sub-path below this prefix, e.g.
+#   "/api/capabilities/connectors", "/api/tasks", "/api/agents/<id>".
+_APP_PREFIX = "/apps/mb-platform-agent"
 
 
 class AgentError(Exception):
@@ -26,7 +28,7 @@ class AgentClient:
     def __init__(self, access_token: str, host: str, tenant_id: str):
         self._token = access_token
         self._tenant_id = tenant_id
-        self._base_url = host.rstrip("/") + _API_PREFIX
+        self._base_url = host.rstrip("/") + _APP_PREFIX
 
     def _headers(self) -> dict[str, str]:
         return {
@@ -53,13 +55,36 @@ class AgentClient:
                 raise AgentError(0, None, f"{e or type(e).__name__} (url={self._base_url}{path})") from e
             return self._handle(resp)
 
-    async def post(self, path: str, json_body: Any) -> Any:
+    async def post(self, path: str, json_body: Any = None) -> Any:
         async with httpx.AsyncClient(timeout=60.0) as client:
             try:
                 resp = await client.post(
                     f"{self._base_url}{path}",
                     headers=self._headers(),
                     json=json_body,
+                )
+            except httpx.RequestError as e:
+                raise AgentError(0, None, f"{e or type(e).__name__} (url={self._base_url}{path})") from e
+            return self._handle(resp)
+
+    async def put(self, path: str, json_body: Any) -> Any:
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            try:
+                resp = await client.put(
+                    f"{self._base_url}{path}",
+                    headers=self._headers(),
+                    json=json_body,
+                )
+            except httpx.RequestError as e:
+                raise AgentError(0, None, f"{e or type(e).__name__} (url={self._base_url}{path})") from e
+            return self._handle(resp)
+
+    async def delete(self, path: str) -> Any:
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            try:
+                resp = await client.delete(
+                    f"{self._base_url}{path}",
+                    headers=self._headers(),
                 )
             except httpx.RequestError as e:
                 raise AgentError(0, None, f"{e or type(e).__name__} (url={self._base_url}{path})") from e

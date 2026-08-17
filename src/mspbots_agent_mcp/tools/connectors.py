@@ -35,7 +35,7 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
         if client is None:
             return NO_TOKEN
         try:
-            result = await client.get("/connectors")
+            result = await client.get("/api/capabilities/connectors")
         except AgentError as e:
             return f"Error: {e}"
 

@@ -91,8 +91,10 @@ def create_mcp_server(settings: Settings) -> FastMCP:
 
     client_factory: Callable[[], AgentClient | None] = lambda: get_client_from_context(settings)
 
-    from .tools import connectors
+    from .tools import agents, connectors, triggers
 
     connectors.register(mcp, client_factory)
+    triggers.register(mcp, client_factory)
+    agents.register(mcp, client_factory)
 
     return mcp
