@@ -181,23 +181,13 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
     async def mspbotsagent_set_sop_data_sources(agent_id: str, value: dict) -> str:
         """Set the agent's SOP data-sources list (structured object).
 
+        Each source stores only its integration key. Shape:
+          { "sources": [ { "integration": "open-meteo" }, { "integration": "ms-graph" } ] }
+
         Args:
             agent_id: The agent to update. Required.
-            value:    Structured object. Shape:
-                      {
-                        "sources": [
-                          {
-                            "name": "Open-Meteo API",
-                            "object": "current weather",
-                            "connector": "http",
-                            "role": "ssot",
-                            "usedBy": "s6",
-                            "connected": false,
-                            "assumed": true
-                          }
-                        ],
-                        "preconditions": ["The runtime can reach api.open-meteo.com."]
-                      }
+            value:    Object with a "sources" array; each item is
+                      { "integration": "<key>" }.
 
         Returns the updated record as JSON.
         """

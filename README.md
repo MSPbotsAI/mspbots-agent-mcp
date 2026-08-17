@@ -98,15 +98,14 @@ upsert 工具会**拒绝回写**以避免持久化坏策略。主键均为 `agen
 | `mspbotsagent_get_sop_procedure` | 读取 procedure（markdown） | `agent_id`(必填) |
 | `mspbotsagent_set_sop_procedure` | 设置 procedure（markdown） | `agent_id`(必填)、`value`(必填) |
 
-dataSources `value` 结构：
+dataSources `value` 结构（每个 source 只存 `integration`，无 `preconditions`）：
 
 ```json
 {
   "sources": [
-    { "name": "Open-Meteo API", "object": "current weather", "connector": "http",
-      "role": "ssot", "usedBy": "s6", "connected": false, "assumed": true }
-  ],
-  "preconditions": ["The runtime can reach api.open-meteo.com."]
+    { "integration": "open-meteo" },
+    { "integration": "ms-graph" }
+  ]
 }
 ```
 
