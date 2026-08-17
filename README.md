@@ -80,6 +80,38 @@ upsert 工具会**拒绝回写**以避免持久化坏策略。主键均为 `agen
 > Backing endpoints: `GET /api/agents/:id`（三个 get 共用），`PUT /api/agents/:id`（三个 upsert 共用，
 > partial：分别写 `permission`/`interruptOn`、`review`、`approval`）。
 
+### Agent SOP author
+
+一个 agent 的 SOP（标准作业流程）草稿，含 5 个独立字段，每个字段各有读/写两个工具。
+写入统一为 `PUT {"value": ...}`。主键 `agentId`。
+
+| Tool | 功能 | 参数 |
+|---|---|---|
+| `mspbotsagent_get_sop_name` | 读取 SOP 名称 | `agent_id`(必填) |
+| `mspbotsagent_set_sop_name` | 设置 SOP 名称（非空、≤60 字符、租户内唯一、不可清空） | `agent_id`(必填)、`value`(必填) |
+| `mspbotsagent_get_sop_source` | 读取 source（撰写 SOP 所依据的原始任务描述） | `agent_id`(必填) |
+| `mspbotsagent_set_sop_source` | 设置 source（传 null 清空） | `agent_id`(必填)、`value`(必填，字符串或 null) |
+| `mspbotsagent_get_sop_purpose` | 读取 purpose（markdown） | `agent_id`(必填) |
+| `mspbotsagent_set_sop_purpose` | 设置 purpose（markdown） | `agent_id`(必填)、`value`(必填) |
+| `mspbotsagent_get_sop_data_sources` | 读取 dataSources list（结构化对象） | `agent_id`(必填) |
+| `mspbotsagent_set_sop_data_sources` | 设置 dataSources list（结构化对象） | `agent_id`(必填)、`value`(必填，对象) |
+| `mspbotsagent_get_sop_procedure` | 读取 procedure（markdown） | `agent_id`(必填) |
+| `mspbotsagent_set_sop_procedure` | 设置 procedure（markdown） | `agent_id`(必填)、`value`(必填) |
+
+dataSources `value` 结构：
+
+```json
+{
+  "sources": [
+    { "name": "Open-Meteo API", "object": "current weather", "connector": "http",
+      "role": "ssot", "usedBy": "s6", "connected": false, "assumed": true }
+  ],
+  "preconditions": ["The runtime can reach api.open-meteo.com."]
+}
+```
+
+> Backing endpoints: `GET|PUT /api/agents/:id/sop-author/{name,source,purpose,data-sources-list,procedure}`。
+
 ## Quick Start
 
 ### Docker (recommended)
