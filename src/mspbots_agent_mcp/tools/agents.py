@@ -86,7 +86,9 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
             dict | None,
             Field(
                 description=(
-                    'Map of tool -> "allow" | "ask" | "deny". Example: '
+                    'Map of tool -> "allow" | "ask" | "deny". Keys are tool ids '
+                    '(built-in ids like "execute", "read_file", or connector ids '
+                    'like "qbo.createInvoice"). Example: '
                     '{"qbo.createInvoice": "ask", "shell.exec": "deny"}'
                 )
             ),
@@ -96,7 +98,7 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
             Field(
                 description=(
                     "Map of tool -> true, or "
-                    '{"allowed_decisions": ["approve","reject"], "description": "..."}. '
+                    '{"allowed_decisions": ["approve","edit","reject"], "description": "..."}. '
                     'Example: {"email.send": true}'
                 )
             ),
@@ -105,9 +107,12 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
             dict | None,
             Field(
                 description=(
-                    'Intent-level approval rules: {"rules": [ ... ]}. Example: '
+                    'Intent-level approval rules: {"rules": [ ... ]}. Each rule: '
+                    '{"name"?, "intent"?, "triggers"?: [regex], "tools"?: [tool], '
+                    '"decisions"?: [decision]}. Example: '
                     '{"rules": [{"intent": "refunds over $500", '
-                    '"triggers": ["refund"], "decisions": ["approve","reject"]}]}'
+                    '"triggers": ["refund"], "decisions": ["approve","reject"]}]}. '
+                    'Send {"rules": []} to clear all intents.'
                 )
             ),
         ] = None,
@@ -126,26 +131,42 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
         It does NOT set `review` (that is the separate output-quality/self-review axis; use the
         review tool for that).
 
-        The keys are independent — only the ones you pass are changed; omitted keys are left
-        untouched. Provide at least one of `permission`, `interrupt_on`, `approval`, or `owners`.
-        You may send `owners` alone to just change ownership.
+        Keys are independent — only the ones you pass change; omitted keys are left untouched.
+        Provide at least one of `permission`, `interrupt_on`, `approval`, or `owners`. You may
+        send `owners` alone to just change ownership.
 
-        How the three action-governance keys relate:
-          • permission  — per-tool gate, the baseline. {tool -> "allow" | "ask" | "deny"}.
+        HOW THE THREE ACTION KEYS RELATE
+          • permission   — per-tool baseline gate. {tool -> "allow" | "ask" | "deny"}.
               allow = call freely; deny = never call; ask = pause for a human before calling.
           • interrupt_on — the RICH form of "ask", per-tool. {tool -> true} or
-              {tool -> {"allowed_decisions": ["approve","reject",...], "description": "..."}}.
-              Use it when a paused tool should constrain what the reviewer may decide, or show a
-              note. A tool is either allow/deny (permission) or paused; "paused" lives as
-              permission:"ask" normally, or here in interrupt_on when you restrict its decisions.
-              permission and interrupt_on for the same tool are two forms of one setting, not a
-              conflict.
-          • approval — INTENT-level, independent of per-tool ask and NOT keyed by tool name.
+              {tool -> {"allowed_decisions": [...], "description": "..."}}. Use it when a paused
+              tool should restrict what the reviewer may decide, or show a note. permission:"ask"
+              and interrupt_on for the same tool are two forms of ONE setting (pause), not a
+              conflict: a full/empty decision set stays as permission:"ask"; a restricted set
+              lives in interrupt_on. allow/deny only ever live in permission.
+          • approval     — INTENT-level, independent of per-tool ask and NOT keyed by tool name.
               {"rules": [{"name"?, "intent"?, "triggers"?: [regex], "tools"?: [tool],
               "decisions"?: [decision]}]}. A router judges each pending action against `intent`
-              (the wording) and `triggers` (regexes that pre-filter which calls reach the rule);
-              a match forces approval even if the tool itself is "allow". Send {"rules": []} to
-              clear all approval intents. Invalid trigger regex is rejected.
+              (the wording) and `triggers` (regexes that pre-filter which calls reach the rule); a
+              match forces approval even if the tool itself is "allow". Send {"rules": []} to
+              clear all intents. Invalid trigger regex is rejected.
+
+        KNOWN BUILT-IN TOOL IDS (keys for permission / interrupt_on)
+          execute          Run shell commands / code
+          read_file        Read files in the workspace
+          write_file       Create or overwrite files
+          edit_file        Modify existing files
+          download         Hand a finished file to the user
+          task             Delegate to a sub-agent
+          start_async_task Start a background agent and carry on
+          ask              Ask the user a question (HITL channel; a distinct toggle, not a preset
+                           tool)
+        Connector (MCP) tools use their own ids verbatim, e.g. "qbo.createInvoice".
+
+        DECISION VALUES (for interrupt_on.allowed_decisions and approval.decisions)
+          "approve" (Allow)   "edit" (Edit)   "reject" (Deny)
+        Deny note: agentos also treats {tool: false} in a `tools` map as equivalent to permission
+        "deny" (the two are unioned). Write denies via permission:"deny".
 
         When the agent has policyError=true, permission / interrupt_on / approval are all
         unreliable and writing them is refused (they share one assistant policy); owners-only
