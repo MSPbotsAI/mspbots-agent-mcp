@@ -1,8 +1,9 @@
 import json
 from collections.abc import Callable
-from typing import Any
+from typing import Annotated, Any
 
 from mcp.server.fastmcp import FastMCP
+from pydantic import Field
 
 from ..api_client import AgentClient, AgentError
 from ._common import NO_TOKEN
@@ -12,6 +13,12 @@ from ._common import NO_TOKEN
 # partial PUT /api/agents/:id. Because writes are partial patches, two concurrent
 # PUTs to the same agent can clobber each other — callers must not update the
 # same agent in parallel.
+#
+# These settings govern the agent's actual runtime behavior (what it is allowed
+# to do, when it must pause, when a human must approve). That's distinct from
+# the SOP-author tools (sop_author.py), which manage a documentation/planning
+# artifact — the agent's written standard operating procedure — rather than
+# enforced runtime policy.
 
 
 async def _fetch_agent_data(client: AgentClient, agent_id: str) -> Any:
@@ -43,11 +50,10 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
     # ----- 7. permissions -------------------------------------------------
 
     @mcp.tool()
-    async def mspbotsagent_get_agent_permissions(agent_id: str) -> str:
+    async def mspbotsagent_get_agent_permissions(
+        agent_id: Annotated[str, Field(description="The agent to read. Required.")],
+    ) -> str:
         """Read an agent's tool-permission and interrupt settings.
-
-        Args:
-            agent_id: The agent to read. Required.
 
         Returns JSON with:
             permission  — map of tool -> "allow" | "ask" | "deny"
@@ -75,10 +81,35 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
 
     @mcp.tool()
     async def mspbotsagent_upsert_agent_permissions(
-        agent_id: str,
-        permission: dict | None = None,
-        interrupt_on: dict | None = None,
-        owners: list[dict] | None = None,
+        agent_id: Annotated[str, Field(description="The agent to update. Required.")],
+        permission: Annotated[
+            dict | None,
+            Field(
+                description=(
+                    'Map of tool -> "allow" | "ask" | "deny". Example: '
+                    '{"qbo.createInvoice": "ask", "shell.exec": "deny"}'
+                )
+            ),
+        ] = None,
+        interrupt_on: Annotated[
+            dict | None,
+            Field(
+                description=(
+                    "Map of tool -> true, or "
+                    '{"allowed_decisions": ["approve","reject"], "description": "..."}. '
+                    'Example: {"email.send": true}'
+                )
+            ),
+        ] = None,
+        owners: Annotated[
+            list[dict] | None,
+            Field(
+                description=(
+                    "List of owner objects who own the agent, each: "
+                    '{"userId": "user-123", "name": "Kaka", "email": "kaka@x.com"}'
+                )
+            ),
+        ] = None,
     ) -> str:
         """Update an agent's permissions, interrupt settings, and/or owners (partial).
 
@@ -86,16 +117,6 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
         omitted keys are left untouched. Provide at least one of `permission`,
         `interrupt_on`, or `owners`. You may send `owners` on its own to just
         change ownership.
-
-        Args:
-            agent_id:     The agent to update. Required.
-            permission:   Map of tool -> "allow" | "ask" | "deny". Example:
-                          {"qbo.createInvoice": "ask", "shell.exec": "deny"}
-            interrupt_on: Map of tool -> true, or
-                          {"allowed_decisions": ["approve","reject"], "description": "..."}.
-                          Example: {"email.send": true}
-            owners:       List of owner objects who own the agent, each:
-                          {"userId": "user-123", "name": "Kaka", "email": "kaka@x.com"}
 
         When the agent has policyError=true, permission/interrupt_on are unreliable
         and writing them is refused; owners-only updates are still allowed.
@@ -135,11 +156,10 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
     # ----- 8. evaluation --------------------------------------------------
 
     @mcp.tool()
-    async def mspbotsagent_get_agent_evaluation(agent_id: str) -> str:
+    async def mspbotsagent_get_agent_evaluation(
+        agent_id: Annotated[str, Field(description="The agent to read. Required.")],
+    ) -> str:
         """Read an agent's self-evaluation (review) configuration.
-
-        Args:
-            agent_id: The agent to read. Required.
 
         Returns JSON with `review` = { rules, max_iterations } or null when no
         self-evaluation is configured.
@@ -155,25 +175,28 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
 
     @mcp.tool()
     async def mspbotsagent_upsert_agent_evaluation(
-        agent_id: str,
-        rules: list[dict],
-        max_iterations: int | None = None,
+        agent_id: Annotated[str, Field(description="The agent to update. Required.")],
+        rules: Annotated[
+            list[dict],
+            Field(
+                description=(
+                    "List of rule objects. Empty list disables self-eval. "
+                    "Each rule: "
+                    '{ "rubric": "The reply cites the source ticket id.", '
+                    '"name": "cite-source", '
+                    '"description": "Apply to any customer-facing reply.", '
+                    '"triggers": ["ticket", "#\\d+"] }   # regex/keywords'
+                )
+            ),
+        ],
+        max_iterations: Annotated[
+            int | None, Field(description="Max self-review passes (e.g. 3). Optional.")
+        ] = None,
     ) -> str:
         """Set or update an agent's self-evaluation rules.
 
         The agent reviews its own output against these rules and may revise it.
         Pass an empty list for `rules` to turn self-evaluation OFF.
-
-        Args:
-            agent_id:       The agent to update. Required.
-            rules:          List of rule objects. Empty list disables self-eval.
-                            Each rule: {
-                              "rubric": "The reply cites the source ticket id.",
-                              "name": "cite-source",
-                              "description": "Apply to any customer-facing reply.",
-                              "triggers": ["ticket", "#\\d+"]   # regex/keywords
-                            }
-            max_iterations: Max self-review passes (e.g. 3). Optional.
 
         Do not update the same agent from two calls at once.
 
@@ -199,11 +222,10 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
     # ----- 9. human-in-loop (approval) ------------------------------------
 
     @mcp.tool()
-    async def mspbotsagent_get_agent_approval(agent_id: str) -> str:
+    async def mspbotsagent_get_agent_approval(
+        agent_id: Annotated[str, Field(description="The agent to read. Required.")],
+    ) -> str:
         """Read an agent's human-in-the-loop approval rules.
-
-        Args:
-            agent_id: The agent to read. Required.
 
         Returns JSON with `approval` = list of rule objects (may be empty).
         """
@@ -218,23 +240,25 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
 
     @mcp.tool()
     async def mspbotsagent_upsert_agent_approval(
-        agent_id: str,
-        rules: list[dict],
+        agent_id: Annotated[str, Field(description="The agent to update. Required.")],
+        rules: Annotated[
+            list[dict],
+            Field(
+                description=(
+                    "List of approval-rule objects. Each rule: "
+                    '{ "name": "gate-refunds", '
+                    '"intent": "Issuing a refund over $100", '
+                    '"triggers": ["refund", "\\$\\d{3,}"],   # regex/keywords '
+                    '"tools": ["qbo.createRefund"], '
+                    '"decisions": ["approve", "reject"] }'
+                )
+            ),
+        ],
     ) -> str:
         """Set or update an agent's human-in-the-loop approval rules.
 
         Each rule gates a sensitive action so a human must approve/reject before
         the agent proceeds. Pass an empty list to remove all approval gates.
-
-        Args:
-            agent_id: The agent to update. Required.
-            rules:    List of approval-rule objects. Each rule: {
-                        "name": "gate-refunds",
-                        "intent": "Issuing a refund over $100",
-                        "triggers": ["refund", "\\$\\d{3,}"],   # regex/keywords
-                        "tools": ["qbo.createRefund"],
-                        "decisions": ["approve", "reject"]
-                      }
 
         Do not update the same agent from two calls at once.
 

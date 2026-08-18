@@ -9,6 +9,31 @@ stored credentials, per-request header authentication over the
 [Model Context Protocol](https://modelcontextprotocol.io/) (Streamable HTTP/SSE
 transport).
 
+## When would you use this
+
+This MCP is meta: it doesn't wrap a customer-facing integration, it wraps the
+Agent Platform's own admin/config API for an agent. The "users" are platform
+admins/builders setting up an agent, or an agent introspecting/adjusting its
+own configuration:
+
+- "What connectors does this tenant have hooked up, and which are actually
+  connected right now?" → `mspbotsagent_get_connectors`
+- "Make this agent run every Monday morning to summarize open tickets" →
+  `mspbotsagent_upsert_trigger` (type `recurring`)
+- "Kick this agent off automatically whenever a new ConnectWise ticket comes
+  in" → `mspbotsagent_upsert_trigger` (type `event`, after checking
+  `mspbotsagent_get_trigger_catalog`)
+- "Lock down what this agent is allowed to do without asking first" →
+  `mspbotsagent_upsert_agent_permissions`
+- "Require a human to sign off before this agent issues a refund" →
+  `mspbotsagent_upsert_agent_approval`
+- "Write up this agent's SOP so it has a documented, repeatable procedure" →
+  `mspbotsagent_set_sop_purpose` / `mspbotsagent_set_sop_procedure` / the
+  other `mspbotsagent_set_sop_*` tools
+- "Give this agent a private skill for X" / "What skills does this agent
+  already have?" → `mspbotsagent_create_agent_skill` /
+  `mspbotsagent_list_agent_skills`
+
 ## Tools
 
 所有工具的凭证均来自请求头（`X-MSP-Token` / `X-MSP-Tenant-Id` / `X-MSP-Host`），
@@ -82,8 +107,15 @@ upsert 工具会**拒绝回写 `permission`/`interruptOn`**（owners-only 更新
 
 ### Agent SOP author
 
-一个 agent 的 SOP（标准作业流程）草稿，含 5 个独立字段，每个字段各有读/写两个工具。
-写入统一为 `PUT {"value": ...}`。主键 `agentId`。
+一个 agent 的 SOP（标准作业流程）草稿，含 5 个独立字段，每个字段各有读/写两个工具，
+各字段写入走各自独立的 endpoint（不像上面的 permission/evaluation/approval 三者共用同一个
+`PUT /api/agents/:id`）。写入统一为 `PUT {"value": ...}`。主键 `agentId`。
+
+> 尽管每个字段的 endpoint 不同，这 5 个字段仍然挂在**同一条 agent 记录**（`sopAuthor`
+> 子文档）上，因此和上面的 permission/evaluation/approval 一样：**不要对同一 agent 的
+> SOP 字段并发写**，否则可能互相覆盖。SOP 本身是一份文档/规划性质的草稿，用于描述 agent
+> "应该怎么做"；而上面的 permission/evaluation/approval 是运行时真正生效的行为策略，
+> 决定 agent "实际能做什么"——两者是互补但不同的两类配置。
 
 | Tool | 功能 | 参数 |
 |---|---|---|
@@ -110,6 +142,29 @@ dataSources `value` 结构（每个 source 只存 `integration`，无 `precondit
 ```
 
 > Backing endpoints: `GET|PUT /api/agents/:id/sop-author/{name,source,purpose,data-sources-list,procedure}`。
+
+### Agent skills
+
+一个 agent 可用的 skill 分三类：`mspbots`(平台内置)、`org`(组织共享)、`agent`(该 agent 私有)。
+只有私有(`agent`)skill 能在这里创建/编辑/删除；`mspbots`/`org` skill 只能读、不能改。
+主键为 `capabilityId`（列表接口里每条记录的 `id`）。
+
+| Tool | 功能 | 参数 |
+|---|---|---|
+| `mspbotsagent_list_agent_skills` | 列出某 agent 可用的全部 skill(org 共享 + 该 agent 私有 + 平台 mspbots)及勾选状态 | `agent_id`(必填) |
+| `mspbotsagent_create_agent_skill` | 为某 agent 新建一个私有 skill(scope=agent)，发布为 npm 版本并装入该 agent 工作区 | `agent_id`(必填)、`name`(必填)、`files`(必填，需含一个 `SKILL.md`) |
+| `mspbotsagent_update_agent_skill_files` | 编辑某 agent 私有 skill 的文件并发布新版本(整包替换)。仅限该 agent 拥有的私有 skill | `agent_id`(必填)、`capability_id`(必填)、`files`(必填，完整文件集)、`note`(可选，缺省 "Edit") |
+| `mspbotsagent_delete_agent_skill` | 删除某 agent 的私有 skill：软删 capability + 清 opt-out 行 + 从工作区卸载 | `agent_id`(必填)、`capability_id`(必填) |
+
+`mspbotsagent_list_agent_skills` 返回每个 skill 的 `id`/`type`(`mspbots`|`org`|`agent`)/`ref`/`scope`/`name`/`skillName`/`description`/`version`/`enabled`/`selected`(未 opt-out 即 `true`)/`available`，以及一份 `selectedIds` 列表。
+
+> ⚠️ **`files` 里每个元素("SkillFile")的具体字段结构，接手时给的 API 规格里只写了 `"$ref": "#/definitions/SkillFile"`，没有附上这个 definitions 块。**
+> 本实现假设是 `{"path": "<相对路径，如 'SKILL.md'>", "content": "<原始文本内容>"}` ——参照通用的 SKILL.md 打包约定推断，**未经真实 API 验证**，接入前请与后端确认实际字段名（是否还有 `encoding`/`executable` 等）。
+>
+> Backing endpoints: `GET /api/agents/:id/skills`, `POST /api/agents/:id/skills/create`,
+> `PUT /api/agents/:id/skills/:capabilityId/files`, `DELETE /api/agents/:id/skills`
+> (最后一个的请求体是 `{"id": "<capabilityId>"}` —— DELETE 带 body 在 HTTP 里少见，
+> 本服务走 httpx 的底层 `request()` 而非 `delete()` 来发这个请求)。
 
 ## Quick Start
 
