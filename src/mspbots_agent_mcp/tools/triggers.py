@@ -71,6 +71,8 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
             `trigger_integration` (e.g. "connectwise") and `trigger_events`
             (e.g. ["ticket.created"]). The combination must be valid — check
             mspbotsagent_get_trigger_catalog first.
+          - "manual": runs only when someone starts it. Needs nothing beyond the
+            common fields — no schedule, no integration, no events.
 
         Args (all optional on update; on create agent_id/name/prompt/type are
         required):
@@ -78,7 +80,7 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
             task_id:             Present = update that trigger; absent = create.
             name:                Human-readable trigger name.
             prompt:              Instruction the agent runs when triggered.
-            type:                "recurring" or "event".
+            type:                "recurring", "event" or "manual".
             enabled:             Whether the trigger is active.
             expires_in_days:     Auto-expire after N days.
             schedule:            Cron expression (recurring only, min 1h interval).
@@ -108,8 +110,8 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
             ]
             if missing:
                 return f"Error: creating a trigger requires: {', '.join(missing)}"
-            if type not in ("recurring", "event"):
-                return "Error: type must be 'recurring' or 'event'"
+            if type not in ("recurring", "event", "manual"):
+                return "Error: type must be 'recurring', 'event' or 'manual'"
             if type == "recurring" and not schedule:
                 return "Error: recurring triggers require a cron 'schedule' (min 1h interval)"
             if type == "event" and (not trigger_integration or not trigger_events):
