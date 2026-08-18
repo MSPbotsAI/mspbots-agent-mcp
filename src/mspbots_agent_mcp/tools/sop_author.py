@@ -1,7 +1,9 @@
 import json
 from collections.abc import Callable
+from typing import Annotated
 
 from mcp.server.fastmcp import FastMCP
+from pydantic import Field
 
 from ..api_client import AgentClient, AgentError
 from ._common import NO_TOKEN
@@ -9,6 +11,16 @@ from ._common import NO_TOKEN
 # The "SOP author" resource holds an agent's standard-operating-procedure draft.
 # It has five independent fields, each with its own read/write endpoint under
 # /api/agents/:id/sop-author/<field>. Every write sends {"value": ...}.
+#
+# Although each field has its own endpoint (unlike the permissions/evaluation/
+# approval trio in agents.py, which share one literal PUT /api/agents/:id), all
+# five fields still live on the same underlying agent record (the "sopAuthor"
+# sub-document keyed by agentId). Treat concurrent writes to this agent's SOP
+# fields the same way: do not update them from two calls at once.
+#
+# This is a documentation/planning artifact (the agent's written SOP), distinct
+# from the tool-permission/evaluation/approval settings in agents.py, which
+# govern the agent's actual runtime behavior.
 
 _NAME = "/name"
 _SOURCE = "/source"
@@ -28,11 +40,10 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
     # ----- name -----------------------------------------------------------
 
     @mcp.tool()
-    async def mspbotsagent_get_sop_name(agent_id: str) -> str:
+    async def mspbotsagent_get_sop_name(
+        agent_id: Annotated[str, Field(description="The agent to read. Required.")],
+    ) -> str:
         """Read the agent's SOP name.
-
-        Args:
-            agent_id: The agent to read. Required.
 
         Returns the current name as JSON.
         """
@@ -46,16 +57,20 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
         return json.dumps(result, indent=2, ensure_ascii=False)
 
     @mcp.tool()
-    async def mspbotsagent_set_sop_name(agent_id: str, value: str) -> str:
+    async def mspbotsagent_set_sop_name(
+        agent_id: Annotated[str, Field(description="The agent to update. Required.")],
+        value: Annotated[
+            str, Field(description="New name (non-empty, <= 60 chars). Required.")
+        ],
+    ) -> str:
         """Set the agent's SOP name.
 
         The name must be a non-empty string of at most 60 characters and must be
         unique within the tenant (uniqueness is enforced by the server). It
         cannot be cleared — always provide a real name.
 
-        Args:
-            agent_id: The agent to update. Required.
-            value:    New name (non-empty, <= 60 chars). Required.
+        Do not update this agent's SOP fields from two calls at once — they
+        share the same underlying record and concurrent writes can race.
 
         Returns the updated record as JSON.
         """
@@ -76,11 +91,10 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
     # ----- source ---------------------------------------------------------
 
     @mcp.tool()
-    async def mspbotsagent_get_sop_source(agent_id: str) -> str:
+    async def mspbotsagent_get_sop_source(
+        agent_id: Annotated[str, Field(description="The agent to read. Required.")],
+    ) -> str:
         """Read the agent's SOP source (the raw task description it was authored from).
-
-        Args:
-            agent_id: The agent to read. Required.
 
         Returns the current source as JSON (may be null).
         """
@@ -94,15 +108,19 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
         return json.dumps(result, indent=2, ensure_ascii=False)
 
     @mcp.tool()
-    async def mspbotsagent_set_sop_source(agent_id: str, value: str | None) -> str:
+    async def mspbotsagent_set_sop_source(
+        agent_id: Annotated[str, Field(description="The agent to update. Required.")],
+        value: Annotated[
+            str | None, Field(description="New source text, or null to clear. Required.")
+        ],
+    ) -> str:
         """Set (or clear) the agent's SOP source.
 
         Pass a string to set the source, or pass null to clear it. `value` is
         required so clearing is always explicit.
 
-        Args:
-            agent_id: The agent to update. Required.
-            value:    New source text, or null to clear. Required.
+        Do not update this agent's SOP fields from two calls at once — they
+        share the same underlying record and concurrent writes can race.
 
         Returns the updated record as JSON.
         """
@@ -118,11 +136,10 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
     # ----- purpose --------------------------------------------------------
 
     @mcp.tool()
-    async def mspbotsagent_get_sop_purpose(agent_id: str) -> str:
+    async def mspbotsagent_get_sop_purpose(
+        agent_id: Annotated[str, Field(description="The agent to read. Required.")],
+    ) -> str:
         """Read the agent's SOP purpose (markdown).
-
-        Args:
-            agent_id: The agent to read. Required.
 
         Returns the current purpose markdown as JSON.
         """
@@ -136,15 +153,24 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
         return json.dumps(result, indent=2, ensure_ascii=False)
 
     @mcp.tool()
-    async def mspbotsagent_set_sop_purpose(agent_id: str, value: str) -> str:
+    async def mspbotsagent_set_sop_purpose(
+        agent_id: Annotated[str, Field(description="The agent to update. Required.")],
+        value: Annotated[
+            str,
+            Field(
+                description=(
+                    'Purpose markdown, e.g. "**Produces:** ...\\n**Boundary:** ...". '
+                    "Required."
+                )
+            ),
+        ],
+    ) -> str:
         """Set the agent's SOP purpose.
 
         Describes what the SOP produces and its boundaries. Accepts markdown.
 
-        Args:
-            agent_id: The agent to update. Required.
-            value:    Purpose markdown, e.g.
-                      "**Produces:** ...\\n**Boundary:** ...". Required.
+        Do not update this agent's SOP fields from two calls at once — they
+        share the same underlying record and concurrent writes can race.
 
         Returns the updated record as JSON.
         """
@@ -160,11 +186,10 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
     # ----- data sources ---------------------------------------------------
 
     @mcp.tool()
-    async def mspbotsagent_get_sop_data_sources(agent_id: str) -> str:
+    async def mspbotsagent_get_sop_data_sources(
+        agent_id: Annotated[str, Field(description="The agent to read. Required.")],
+    ) -> str:
         """Read the agent's SOP data-sources list (structured).
-
-        Args:
-            agent_id: The agent to read. Required.
 
         Returns the structured data-sources object as JSON.
         """
@@ -178,16 +203,25 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
         return json.dumps(result, indent=2, ensure_ascii=False)
 
     @mcp.tool()
-    async def mspbotsagent_set_sop_data_sources(agent_id: str, value: dict) -> str:
+    async def mspbotsagent_set_sop_data_sources(
+        agent_id: Annotated[str, Field(description="The agent to update. Required.")],
+        value: Annotated[
+            dict,
+            Field(
+                description=(
+                    'Object with a "sources" array; each item is '
+                    '{ "integration": "<key>" }.'
+                )
+            ),
+        ],
+    ) -> str:
         """Set the agent's SOP data-sources list (structured object).
 
         Each source stores only its integration key. Shape:
           { "sources": [ { "integration": "open-meteo" }, { "integration": "ms-graph" } ] }
 
-        Args:
-            agent_id: The agent to update. Required.
-            value:    Object with a "sources" array; each item is
-                      { "integration": "<key>" }.
+        Do not update this agent's SOP fields from two calls at once — they
+        share the same underlying record and concurrent writes can race.
 
         Returns the updated record as JSON.
         """
@@ -203,11 +237,10 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
     # ----- procedure ------------------------------------------------------
 
     @mcp.tool()
-    async def mspbotsagent_get_sop_procedure(agent_id: str) -> str:
+    async def mspbotsagent_get_sop_procedure(
+        agent_id: Annotated[str, Field(description="The agent to read. Required.")],
+    ) -> str:
         """Read the agent's SOP procedure (markdown).
-
-        Args:
-            agent_id: The agent to read. Required.
 
         Returns the current procedure markdown as JSON.
         """
@@ -221,15 +254,17 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
         return json.dumps(result, indent=2, ensure_ascii=False)
 
     @mcp.tool()
-    async def mspbotsagent_set_sop_procedure(agent_id: str, value: str) -> str:
+    async def mspbotsagent_set_sop_procedure(
+        agent_id: Annotated[str, Field(description="The agent to update. Required.")],
+        value: Annotated[str, Field(description="Procedure markdown. Required.")],
+    ) -> str:
         """Set the agent's SOP procedure.
 
         The ordered steps the agent follows. Accepts markdown (headings, numbered
         steps, per-step executor/output/done-when/idempotency notes, etc.).
 
-        Args:
-            agent_id: The agent to update. Required.
-            value:    Procedure markdown. Required.
+        Do not update this agent's SOP fields from two calls at once — they
+        share the same underlying record and concurrent writes can race.
 
         Returns the updated record as JSON.
         """

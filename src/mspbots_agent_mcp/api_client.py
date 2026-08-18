@@ -90,6 +90,22 @@ class AgentClient:
                 raise AgentError(0, None, f"{e or type(e).__name__} (url={self._base_url}{path})") from e
             return self._handle(resp)
 
+    async def delete_with_body(self, path: str, json_body: Any) -> Any:
+        # httpx's AsyncClient.delete() has no json/content parameter (DELETE
+        # bodies are unusual), so a DELETE-with-body endpoint has to go
+        # through the lower-level request() call instead.
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            try:
+                resp = await client.request(
+                    "DELETE",
+                    f"{self._base_url}{path}",
+                    headers=self._headers(),
+                    json=json_body,
+                )
+            except httpx.RequestError as e:
+                raise AgentError(0, None, f"{e or type(e).__name__} (url={self._base_url}{path})") from e
+            return self._handle(resp)
+
     def _handle(self, resp: httpx.Response) -> Any:
         try:
             body = resp.json()

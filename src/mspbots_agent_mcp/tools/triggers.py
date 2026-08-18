@@ -1,7 +1,9 @@
 import json
 from collections.abc import Callable
+from typing import Annotated
 
 from mcp.server.fastmcp import FastMCP
+from pydantic import Field
 
 from ..api_client import AgentClient, AgentError
 from ._common import NO_TOKEN
@@ -11,9 +13,11 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
 
     @mcp.tool()
     async def mspbotsagent_list_triggers(
-        agent_id: str,
-        page: int = 1,
-        page_size: int = 50,
+        agent_id: Annotated[
+            str, Field(description="The agent whose triggers to list. Required.")
+        ],
+        page: Annotated[int, Field(description="1-based page number. Default 1.")] = 1,
+        page_size: Annotated[int, Field(description="Rows per page. Default 50.")] = 50,
     ) -> str:
         """List all triggers (scheduled/event tasks) owned by an agent.
 
@@ -21,11 +25,6 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
         schedule ("recurring") or when an external integration event happens
         ("event"). Use this to see what is already configured before adding or
         changing one.
-
-        Args:
-            agent_id:  The agent whose triggers to list. Required.
-            page:      1-based page number. Default 1.
-            page_size: Rows per page. Default 50.
 
         Returns JSON with the total count and one row per trigger, each holding
         its taskId, name, prompt, type, enabled flag, schedule/timezone (for
@@ -45,18 +44,46 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
 
     @mcp.tool()
     async def mspbotsagent_upsert_trigger(
-        agent_id: str | None = None,
-        task_id: str | None = None,
-        name: str | None = None,
-        prompt: str | None = None,
-        type: str | None = None,
-        enabled: bool | None = None,
-        expires_in_days: int | None = None,
-        schedule: str | None = None,
-        timezone: str | None = None,
-        run: bool | None = None,
-        trigger_integration: str | None = None,
-        trigger_events: list[str] | None = None,
+        agent_id: Annotated[
+            str | None, Field(description="Owning agent (required on create).")
+        ] = None,
+        task_id: Annotated[
+            str | None,
+            Field(description="Present = update that trigger; absent = create."),
+        ] = None,
+        name: Annotated[
+            str | None, Field(description="Human-readable trigger name.")
+        ] = None,
+        prompt: Annotated[
+            str | None, Field(description="Instruction the agent runs when triggered.")
+        ] = None,
+        type: Annotated[
+            str | None, Field(description='"recurring", "event" or "manual".')
+        ] = None,
+        enabled: Annotated[
+            bool | None, Field(description="Whether the trigger is active.")
+        ] = None,
+        expires_in_days: Annotated[
+            int | None, Field(description="Auto-expire after N days.")
+        ] = None,
+        schedule: Annotated[
+            str | None,
+            Field(description="Cron expression (recurring only, min 1h interval)."),
+        ] = None,
+        timezone: Annotated[
+            str | None,
+            Field(description="IANA timezone for the schedule (recurring only)."),
+        ] = None,
+        run: Annotated[
+            bool | None,
+            Field(description="Run once immediately on create (recurring only)."),
+        ] = None,
+        trigger_integration: Annotated[
+            str | None, Field(description="Integration key (event only).")
+        ] = None,
+        trigger_events: Annotated[
+            list[str] | None, Field(description="Event names (event only).")
+        ] = None,
     ) -> str:
         """Create or update a trigger for an agent.
 
@@ -74,20 +101,7 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
           - "manual": runs only when someone starts it. Needs nothing beyond the
             common fields — no schedule, no integration, no events.
 
-        Args (all optional on update; on create agent_id/name/prompt/type are
-        required):
-            agent_id:            Owning agent (required on create).
-            task_id:             Present = update that trigger; absent = create.
-            name:                Human-readable trigger name.
-            prompt:              Instruction the agent runs when triggered.
-            type:                "recurring", "event" or "manual".
-            enabled:             Whether the trigger is active.
-            expires_in_days:     Auto-expire after N days.
-            schedule:            Cron expression (recurring only, min 1h interval).
-            timezone:            IANA timezone for the schedule (recurring only).
-            run:                 Run once immediately on create (recurring only).
-            trigger_integration: Integration key (event only).
-            trigger_events:      Event names (event only).
+        All optional on update; on create agent_id/name/prompt/type are required.
 
         Returns the created/updated trigger as JSON.
         """
@@ -150,11 +164,10 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
         return json.dumps(result, indent=2, ensure_ascii=False)
 
     @mcp.tool()
-    async def mspbotsagent_delete_trigger(task_id: str) -> str:
+    async def mspbotsagent_delete_trigger(
+        task_id: Annotated[str, Field(description="The trigger to delete. Required.")],
+    ) -> str:
         """Delete a trigger by its taskId. This cannot be undone.
-
-        Args:
-            task_id: The trigger to delete. Required.
 
         Returns the API response as JSON.
         """
@@ -187,14 +200,13 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
         return json.dumps(result, indent=2, ensure_ascii=False)
 
     @mcp.tool()
-    async def mspbotsagent_run_trigger(task_id: str) -> str:
+    async def mspbotsagent_run_trigger(
+        task_id: Annotated[str, Field(description="The trigger to run now. Required.")],
+    ) -> str:
         """Run a trigger once immediately, regardless of its schedule/event.
 
         Useful for testing a newly created trigger or manually re-running one
         without waiting for its next scheduled time or event.
-
-        Args:
-            task_id: The trigger to run now. Required.
 
         Returns the run result as JSON.
         """
