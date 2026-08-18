@@ -61,12 +61,12 @@ returns `{"success": true, "data": {"list": [ {connector}, ... ]}}`.
 
 以下三块配置都挂在**同一条 agent 记录**上：读共用一个 GET，写共用一条 **partial** PUT。
 因此**不要对同一 agent 并发写**（partial patch 会互相覆盖）；当读到 `policyError=true` 时，
-upsert 工具会**拒绝回写**以避免持久化坏策略。主键均为 `agentId`。
+upsert 工具会**拒绝回写 `permission`/`interruptOn`**（owners-only 更新不受影响）以避免持久化坏策略。主键均为 `agentId`。
 
 | Tool | 功能 | 参数 |
 |---|---|---|
-| `mspbotsagent_get_agent_permissions` | 读取权限配置：`permission` / `interruptOn` / `tools`(只读) / `policyError` | `agent_id`(必填) |
-| `mspbotsagent_upsert_agent_permissions` | 更新工具权限与打断设置（partial） | `agent_id`(必填)、`permission`(tool→`allow`/`ask`/`deny`)、`interrupt_on`(tool→`true` 或 `{allowed_decisions, description}`)，二者至少一个 |
+| `mspbotsagent_get_agent_permissions` | 读取权限配置：`permission` / `interruptOn` / `owners` / `tools`(只读) / `policyError` | `agent_id`(必填) |
+| `mspbotsagent_upsert_agent_permissions` | 更新工具权限、打断设置与归属（partial，三个 key 独立，可只发 owners） | `agent_id`(必填)、`permission`(tool→`allow`/`ask`/`deny`)、`interrupt_on`(tool→`true` 或 `{allowed_decisions, description}`)、`owners`(`[{userId, name, email}]`)，三者至少一个 |
 | `mspbotsagent_get_agent_evaluation` | 读取自评配置 `review = {rules, max_iterations}` | `agent_id`(必填) |
 | `mspbotsagent_upsert_agent_evaluation` | 设置/更新自评规则（`rules` 传空数组=关闭自评） | `agent_id`(必填)、`rules`(规则数组)、`max_iterations` |
 | `mspbotsagent_get_agent_approval` | 读取人工审批规则 `approval`(数组) | `agent_id`(必填) |

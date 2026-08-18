@@ -52,8 +52,10 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
         Returns JSON with:
             permission  — map of tool -> "allow" | "ask" | "deny"
             interruptOn — map of tool -> true, or { allowed_decisions, description }
+            owners      — list of { userId, name, email } who own the agent
             tools       — read-only list of tools available to the agent
-            policyError — if true, do NOT write settings back (policy is broken)
+            policyError — if true, permission/interruptOn are unreliable; do NOT
+                          write them back (owners is unaffected)
         """
         client = client_factory()
         if client is None:
@@ -65,6 +67,7 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
         projected = {
             "permission": data.get("permission"),
             "interruptOn": data.get("interruptOn"),
+            "owners": data.get("owners"),
             "tools": data.get("tools"),
             "policyError": data.get("policyError"),
         }
@@ -75,11 +78,14 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
         agent_id: str,
         permission: dict | None = None,
         interrupt_on: dict | None = None,
+        owners: list[dict] | None = None,
     ) -> str:
-        """Update an agent's tool permissions and/or interrupt settings (partial).
+        """Update an agent's permissions, interrupt settings, and/or owners (partial).
 
-        Only the keys you pass are changed; omitted keys are left as-is. Provide
-        at least one of `permission` or `interrupt_on`.
+        The three keys are independent — only the ones you pass are changed;
+        omitted keys are left untouched. Provide at least one of `permission`,
+        `interrupt_on`, or `owners`. You may send `owners` on its own to just
+        change ownership.
 
         Args:
             agent_id:     The agent to update. Required.
@@ -88,6 +94,11 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
             interrupt_on: Map of tool -> true, or
                           {"allowed_decisions": ["approve","reject"], "description": "..."}.
                           Example: {"email.send": true}
+            owners:       List of owner objects who own the agent, each:
+                          {"userId": "user-123", "name": "Kaka", "email": "kaka@x.com"}
+
+        When the agent has policyError=true, permission/interrupt_on are unreliable
+        and writing them is refused; owners-only updates are still allowed.
 
         Do not update the same agent from two calls at once — writes are partial
         and would overwrite each other.
@@ -97,18 +108,24 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
         client = client_factory()
         if client is None:
             return NO_TOKEN
-        if permission is None and interrupt_on is None:
-            return "Error: provide at least one of 'permission' or 'interrupt_on'"
-
-        blocked = await _guard_policy(client, agent_id)
-        if blocked:
-            return blocked
+        if permission is None and interrupt_on is None and owners is None:
+            return "Error: provide at least one of 'permission', 'interrupt_on', or 'owners'"
 
         body: dict = {}
         if permission is not None:
             body["permission"] = permission
         if interrupt_on is not None:
             body["interruptOn"] = interrupt_on
+        if owners is not None:
+            body["owners"] = owners
+
+        # policyError only makes permission/interruptOn unreliable — guard those,
+        # but let an owners-only update through.
+        if "permission" in body or "interruptOn" in body:
+            blocked = await _guard_policy(client, agent_id)
+            if blocked:
+                return blocked
+
         try:
             result = await client.put(f"/api/agents/{agent_id}", body)
         except AgentError as e:
