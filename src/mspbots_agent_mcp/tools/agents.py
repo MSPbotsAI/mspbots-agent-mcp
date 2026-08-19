@@ -1,67 +1,63 @@
-import json
 from collections.abc import Callable
 from typing import Annotated, Any
 
 from mcp.server.fastmcp import FastMCP
+from mcp.types import ToolAnnotations
 from pydantic import Field
 
+from .._json import dump_json_capped, error_envelope
 from ..api_client import AgentClient, AgentError
 from ._common import NO_TOKEN
 
-# Permissions (7), evaluation (8) and human-in-loop approval (9) all live on the
-# SAME agent record. Reads share one GET /api/agents/:id; writes share one
-# partial PUT /api/agents/:id. Because writes are partial patches, two concurrent
+# Permissions, evaluation, and human-in-loop approval all live on the SAME
+# agent record. Reads share one GET /api/agents/:id; writes share one partial
+# PUT /api/agents/:id. Because writes are partial patches, two concurrent
 # PUTs to the same agent can clobber each other — callers must not update the
 # same agent in parallel.
 #
-# These settings govern the agent's actual runtime behavior (what it is allowed
-# to do, when it must pause, when a human must approve). That's distinct from
-# the SOP-author tools (sop_author.py), which manage a documentation/planning
-# artifact — the agent's written standard operating procedure — rather than
-# enforced runtime policy.
+# These settings govern the agent's actual runtime behavior (what it is
+# allowed to do, when it must pause, when a human must approve). That's
+# distinct from the SOP-author tools (sop_author.py), which manage a
+# documentation/planning artifact rather than enforced runtime policy.
 
 
 async def _fetch_agent_data(client: AgentClient, agent_id: str) -> Any:
-    """GET the agent record and return its `data` payload."""
     result = await client.get(f"/api/agents/{agent_id}")
     return (result or {}).get("data", {}) or {}
 
 
 async def _guard_policy(client: AgentClient, agent_id: str) -> str | None:
-    """Return an error string if the agent must not be written back, else None.
+    """Return an error envelope if the agent must not be written back, else None.
 
-    When the platform reports data.policyError=true the stored policy is in a
-    bad state; writing on top of it would persist a broken config, so we refuse.
+    When data.policyError=true the stored policy is in a bad state; writing
+    on top of it would persist a broken config, so we refuse.
     """
     try:
         data = await _fetch_agent_data(client, agent_id)
     except AgentError as e:
-        return f"Error: {e}"
+        return e.to_envelope()
     if data.get("policyError") is True:
-        return (
-            "Error: agent has policyError=true — refusing to write back to avoid "
-            "persisting a broken policy. Resolve the policy error first."
+        return error_envelope(
+            "invalid_argument",
+            "Agent has policyError=true — refusing to write back to avoid persisting "
+            "a broken policy. Resolve the policy error first.",
+            False,
         )
     return None
 
 
 def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> None:
 
-    # ----- 7. permissions -------------------------------------------------
+    # ----- permissions -----------------------------------------------------
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     async def mspbotsagent_get_agent_permissions(
-        agent_id: Annotated[str, Field(description="The agent to read. Required.")],
+        agent_id: Annotated[str, Field(description="Agent to read.")],
     ) -> str:
         """Read an agent's tool-permission and interrupt settings.
 
-        Returns JSON with:
-            permission  — map of tool -> "allow" | "ask" | "deny"
-            interruptOn — map of tool -> true, or { allowed_decisions, description }
-            owners      — list of { userId, name, email } who own the agent
-            tools       — read-only list of tools available to the agent
-            policyError — if true, permission/interruptOn are unreliable; do NOT
-                          write them back (owners is unaffected)
+        Returns permission (tool -> allow/ask/deny), interruptOn, owners,
+        the agent's available tools, and policyError.
         """
         client = client_factory()
         if client is None:
@@ -69,7 +65,7 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
         try:
             data = await _fetch_agent_data(client, agent_id)
         except AgentError as e:
-            return f"Error: {e}"
+            return e.to_envelope()
         projected = {
             "permission": data.get("permission"),
             "interruptOn": data.get("interruptOn"),
@@ -77,11 +73,11 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
             "tools": data.get("tools"),
             "policyError": data.get("policyError"),
         }
-        return json.dumps(projected, indent=2, ensure_ascii=False)
+        return dump_json_capped(projected)
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(idempotentHint=True))
     async def mspbotsagent_upsert_agent_permissions(
-        agent_id: Annotated[str, Field(description="The agent to update. Required.")],
+        agent_id: Annotated[str, Field(description="Agent to update.")],
         permission: Annotated[
             dict | None,
             Field(
@@ -120,8 +116,7 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
             list[dict] | None,
             Field(
                 description=(
-                    "List of owner objects who own the agent, each: "
-                    '{"userId": "user-123", "name": "Kaka", "email": "kaka@x.com"}'
+                    'List of {"userId", "name", "email"} objects who own the agent.'
                 )
             ),
         ] = None,
@@ -203,20 +198,19 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
 
         try:
             result = await client.put(f"/api/agents/{agent_id}", body)
+            return dump_json_capped(result)
         except AgentError as e:
-            return f"Error: {e}"
-        return json.dumps(result, indent=2, ensure_ascii=False)
+            return e.to_envelope()
 
-    # ----- 8. evaluation --------------------------------------------------
+    # ----- evaluation --------------------------------------------------
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     async def mspbotsagent_get_agent_evaluation(
-        agent_id: Annotated[str, Field(description="The agent to read. Required.")],
+        agent_id: Annotated[str, Field(description="Agent to read.")],
     ) -> str:
         """Read an agent's self-evaluation (review) configuration.
 
-        Returns JSON with `review` = { rules, max_iterations } or null when no
-        self-evaluation is configured.
+        Returns review = {rules, max_iterations}, or null if unconfigured.
         """
         client = client_factory()
         if client is None:
@@ -224,37 +218,31 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
         try:
             data = await _fetch_agent_data(client, agent_id)
         except AgentError as e:
-            return f"Error: {e}"
-        return json.dumps({"review": data.get("review")}, indent=2, ensure_ascii=False)
+            return e.to_envelope()
+        return dump_json_capped({"review": data.get("review")})
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(idempotentHint=True))
     async def mspbotsagent_upsert_agent_evaluation(
-        agent_id: Annotated[str, Field(description="The agent to update. Required.")],
+        agent_id: Annotated[str, Field(description="Agent to update.")],
         rules: Annotated[
             list[dict],
             Field(
                 description=(
-                    "List of rule objects. Empty list disables self-eval. "
-                    "Each rule: "
-                    '{ "rubric": "The reply cites the source ticket id.", '
-                    '"name": "cite-source", '
-                    '"description": "Apply to any customer-facing reply.", '
-                    '"triggers": ["ticket", "#\\d+"] }   # regex/keywords'
+                    "List of rule objects; empty list disables self-eval. Each: "
+                    '{"rubric": "...", "name": "...", "description": "...", '
+                    '"triggers": ["regex or keyword", ...]}.'
                 )
             ),
         ],
         max_iterations: Annotated[
-            int | None, Field(description="Max self-review passes (e.g. 3). Optional.")
+            int | None, Field(description="Max self-review passes, e.g. 3.")
         ] = None,
     ) -> str:
         """Set or update an agent's self-evaluation rules.
 
-        The agent reviews its own output against these rules and may revise it.
-        Pass an empty list for `rules` to turn self-evaluation OFF.
-
-        Do not update the same agent from two calls at once.
-
-        Returns the updated agent record as JSON.
+        The agent reviews its own output against these rules and may revise
+        it. Pass an empty rules list to turn self-evaluation off. Do not call
+        this twice concurrently for the same agent.
         """
         client = client_factory()
         if client is None:
@@ -269,19 +257,19 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
             review["max_iterations"] = max_iterations
         try:
             result = await client.put(f"/api/agents/{agent_id}", {"review": review})
+            return dump_json_capped(result)
         except AgentError as e:
-            return f"Error: {e}"
-        return json.dumps(result, indent=2, ensure_ascii=False)
+            return e.to_envelope()
 
-    # ----- 9. human-in-loop (approval) ------------------------------------
+    # ----- human-in-loop (approval) ------------------------------------
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     async def mspbotsagent_get_agent_approval(
-        agent_id: Annotated[str, Field(description="The agent to read. Required.")],
+        agent_id: Annotated[str, Field(description="Agent to read.")],
     ) -> str:
         """Read an agent's human-in-the-loop approval rules.
 
-        Returns JSON with `approval` = list of rule objects (may be empty).
+        Returns approval = list of rule objects (may be empty).
         """
         client = client_factory()
         if client is None:
@@ -289,34 +277,29 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
         try:
             data = await _fetch_agent_data(client, agent_id)
         except AgentError as e:
-            return f"Error: {e}"
-        return json.dumps({"approval": data.get("approval")}, indent=2, ensure_ascii=False)
+            return e.to_envelope()
+        return dump_json_capped({"approval": data.get("approval")})
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(idempotentHint=True))
     async def mspbotsagent_upsert_agent_approval(
-        agent_id: Annotated[str, Field(description="The agent to update. Required.")],
+        agent_id: Annotated[str, Field(description="Agent to update.")],
         rules: Annotated[
             list[dict],
             Field(
                 description=(
-                    "List of approval-rule objects. Each rule: "
-                    '{ "name": "gate-refunds", '
-                    '"intent": "Issuing a refund over $100", '
-                    '"triggers": ["refund", "\\$\\d{3,}"],   # regex/keywords '
-                    '"tools": ["qbo.createRefund"], '
-                    '"decisions": ["approve", "reject"] }'
+                    "List of approval-rule objects. Each: "
+                    '{"name": "...", "intent": "...", '
+                    '"triggers": ["regex or keyword", ...], "tools": [...], '
+                    '"decisions": ["approve", "reject"]}.'
                 )
             ),
         ],
     ) -> str:
         """Set or update an agent's human-in-the-loop approval rules.
 
-        Each rule gates a sensitive action so a human must approve/reject before
-        the agent proceeds. Pass an empty list to remove all approval gates.
-
-        Do not update the same agent from two calls at once.
-
-        Returns the updated agent record as JSON.
+        Each rule gates a sensitive action so a human must approve/reject
+        before the agent proceeds. Pass an empty list to remove all approval
+        gates. Do not call this twice concurrently for the same agent.
         """
         client = client_factory()
         if client is None:
@@ -330,6 +313,6 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
             result = await client.put(
                 f"/api/agents/{agent_id}", {"approval": {"rules": rules}}
             )
+            return dump_json_capped(result)
         except AgentError as e:
-            return f"Error: {e}"
-        return json.dumps(result, indent=2, ensure_ascii=False)
+            return e.to_envelope()

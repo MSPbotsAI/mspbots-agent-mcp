@@ -1,59 +1,55 @@
-import json
 from collections.abc import Callable
 from typing import Annotated
 
 from mcp.server.fastmcp import FastMCP
+from mcp.types import ToolAnnotations
 from pydantic import Field
 
+from .._json import dump_json_capped
 from ..api_client import AgentClient, AgentError
 from ._common import NO_TOKEN
+
+_MAX_PAGE_SIZE = 200
 
 
 def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> None:
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     async def mspbotsagent_list_triggers(
-        agent_id: Annotated[
-            str, Field(description="The agent whose triggers to list. Required.")
-        ],
-        page: Annotated[int, Field(description="1-based page number. Default 1.")] = 1,
-        page_size: Annotated[int, Field(description="Rows per page. Default 50.")] = 50,
+        agent_id: Annotated[str, Field(description="Agent whose triggers to list.")],
+        page: Annotated[int, Field(description="1-based page number.")] = 1,
+        page_size: Annotated[
+            int, Field(description="Rows per page (max 200).")
+        ] = 50,
     ) -> str:
-        """List all triggers (scheduled/event tasks) owned by an agent.
+        """List the scheduled/event triggers configured to run an agent.
 
-        A trigger fires the agent automatically — either on a recurring cron
-        schedule ("recurring") or when an external integration event happens
-        ("event"). Use this to see what is already configured before adding or
-        changing one.
-
-        Returns JSON with the total count and one row per trigger, each holding
-        its taskId, name, prompt, type, enabled flag, schedule/timezone (for
-        recurring), triggerIntegration/triggerEvents (for event), and expiry.
+        A trigger fires the agent automatically: on a cron schedule
+        ("recurring") or on an external integration event ("event").
         """
         client = client_factory()
         if client is None:
             return NO_TOKEN
+        page_size = min(page_size, _MAX_PAGE_SIZE)
         try:
             result = await client.get(
                 "/api/tasks",
                 params={"agentId": agent_id, "page": page, "pageSize": page_size},
             )
+            return dump_json_capped(result)
         except AgentError as e:
-            return f"Error: {e}"
-        return json.dumps(result, indent=2, ensure_ascii=False)
+            return e.to_envelope()
 
     @mcp.tool()
     async def mspbotsagent_upsert_trigger(
         agent_id: Annotated[
-            str | None, Field(description="Owning agent (required on create).")
+            str | None, Field(description="Owning agent. Required on create.")
         ] = None,
         task_id: Annotated[
             str | None,
-            Field(description="Present = update that trigger; absent = create."),
+            Field(description="Set to update that trigger; omit to create a new one."),
         ] = None,
-        name: Annotated[
-            str | None, Field(description="Human-readable trigger name.")
-        ] = None,
+        name: Annotated[str | None, Field(description="Trigger name.")] = None,
         prompt: Annotated[
             str | None, Field(description="Instruction the agent runs when triggered.")
         ] = None,
@@ -68,24 +64,22 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
         ] = None,
         schedule: Annotated[
             str | None,
-            Field(description="Cron expression (recurring only, min 1h interval)."),
+            Field(description="Cron expression. recurring only; minimum 1h interval."),
         ] = None,
         timezone: Annotated[
-            str | None,
-            Field(description="IANA timezone for the schedule (recurring only)."),
+            str | None, Field(description="IANA timezone. recurring only.")
         ] = None,
         run: Annotated[
-            bool | None,
-            Field(description="Run once immediately on create (recurring only)."),
+            bool | None, Field(description="Run once immediately on create. recurring only.")
         ] = None,
         trigger_integration: Annotated[
-            str | None, Field(description="Integration key (event only).")
+            str | None, Field(description="Integration key. event only.")
         ] = None,
         trigger_events: Annotated[
-            list[str] | None, Field(description="Event names (event only).")
+            list[str] | None, Field(description="Event names. event only.")
         ] = None,
     ) -> str:
-        """Create or update a trigger for an agent.
+        """Create a trigger (omit task_id) or update one (pass task_id).
 
         Pass task_id to UPDATE an existing trigger (send only the fields you want
         to change — partial patch). Omit task_id to CREATE a new one.
@@ -159,62 +153,54 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
                 result = await client.post("/api/tasks", body)
             else:
                 result = await client.put(f"/api/tasks/{task_id}", body)
+            return dump_json_capped(result)
         except AgentError as e:
-            return f"Error: {e}"
-        return json.dumps(result, indent=2, ensure_ascii=False)
+            return e.to_envelope()
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(destructiveHint=True))
     async def mspbotsagent_delete_trigger(
-        task_id: Annotated[str, Field(description="The trigger to delete. Required.")],
+        task_id: Annotated[str, Field(description="Trigger to delete.")],
     ) -> str:
-        """Delete a trigger by its taskId. This cannot be undone.
-
-        Returns the API response as JSON.
-        """
+        """Delete a trigger by its task ID. This cannot be undone."""
         client = client_factory()
         if client is None:
             return NO_TOKEN
         try:
             result = await client.delete(f"/api/tasks/{task_id}")
+            return dump_json_capped(result)
         except AgentError as e:
-            return f"Error: {e}"
-        return json.dumps(result, indent=2, ensure_ascii=False)
+            return e.to_envelope()
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     async def mspbotsagent_get_trigger_catalog() -> str:
         """List the valid integration + event combinations for event triggers.
 
-        Call this before creating an "event" trigger to learn which
-        triggerIntegration / triggerEvents pairs are allowed. Passing a
-        combination not in this catalog will be rejected.
-
-        Returns the catalog as JSON. No arguments needed.
+        Call this before creating an "event" trigger — a combination not in
+        this catalog will be rejected.
         """
         client = client_factory()
         if client is None:
             return NO_TOKEN
         try:
             result = await client.get("/api/tasks/trigger-catalog")
+            return dump_json_capped(result)
         except AgentError as e:
-            return f"Error: {e}"
-        return json.dumps(result, indent=2, ensure_ascii=False)
+            return e.to_envelope()
 
     @mcp.tool()
     async def mspbotsagent_run_trigger(
-        task_id: Annotated[str, Field(description="The trigger to run now. Required.")],
+        task_id: Annotated[str, Field(description="Trigger to run now.")],
     ) -> str:
         """Run a trigger once immediately, regardless of its schedule/event.
 
-        Useful for testing a newly created trigger or manually re-running one
-        without waiting for its next scheduled time or event.
-
-        Returns the run result as JSON.
+        Useful for testing a newly created trigger or re-running one without
+        waiting for its next scheduled time or event.
         """
         client = client_factory()
         if client is None:
             return NO_TOKEN
         try:
             result = await client.post(f"/api/tasks/{task_id}/run")
+            return dump_json_capped(result)
         except AgentError as e:
-            return f"Error: {e}"
-        return json.dumps(result, indent=2, ensure_ascii=False)
+            return e.to_envelope()

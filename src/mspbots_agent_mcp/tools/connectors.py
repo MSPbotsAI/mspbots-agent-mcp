@@ -1,35 +1,23 @@
-import json
 from collections.abc import Callable
 
 from mcp.server.fastmcp import FastMCP
+from mcp.types import ToolAnnotations
 
+from .._json import dump_json_capped
 from ..api_client import AgentClient, AgentError
 from ._common import NO_TOKEN
 
 
 def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> None:
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     async def mspbotsagent_get_connectors() -> str:
-        """List the tenant's MSPbots Agent connectors (name, installed, status).
+        """List the tenant's Agent Platform connectors and their status.
 
-        ✅ Verified live against a real tenant.
-
-        API: GET /apps/mb-platform-agent/api/capabilities/connectors
-
-        Returns one row per connector with:
-            name         — display name of the connector
-            integration  — connector/integration key (e.g. "connectwise-command")
-            scope        — connector scope (e.g. "mspbots")
-            managed      — how it is managed (e.g. "gateway")
-            installed    — whether the connector is installed/enabled (bool)
-            connected    — whether it is currently connected (bool)
-            status       — derived: "not_installed" | "connected" |
-                           "installed_disconnected"
-
-        The large base64 `logo` field returned by the API is stripped to keep
-        the response compact. Credentials come from the request headers
-        (X-MSP-Token / X-MSP-Tenant-Id / X-MSP-Host) — no arguments needed.
+        Returns one row per connector: name, integration key, scope, managed
+        method, whether it's installed, whether it's currently connected, and
+        a derived status (not_installed / connected / installed_disconnected).
+        The large base64 logo field is stripped to keep the response compact.
         """
         client = client_factory()
         if client is None:
@@ -37,7 +25,7 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
         try:
             result = await client.get("/api/capabilities/connectors")
         except AgentError as e:
-            return f"Error: {e}"
+            return e.to_envelope()
 
         items = (result or {}).get("data", {}).get("list", []) or []
         rows = []
@@ -56,13 +44,9 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
                     "integration": c.get("integration"),
                     "scope": c.get("scope"),
                     "managed": c.get("managed"),
-                    "installed": enabled,  # 是否安装
+                    "installed": enabled,
                     "connected": connected,
-                    "status": status,  # 状态
+                    "status": status,
                 }
             )
-        return json.dumps(
-            {"count": len(rows), "connectors": rows},
-            indent=2,
-            ensure_ascii=False,
-        )
+        return dump_json_capped({"count": len(rows), "connectors": rows})

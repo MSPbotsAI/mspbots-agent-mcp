@@ -1,4 +1,7 @@
-NO_TOKEN = (
-    "Error: No Agent Platform credentials. Send the X-MSP-Token, X-MSP-Tenant-Id, "
-    "and X-MSP-Host headers."
+from .._json import error_envelope
+
+NO_TOKEN = error_envelope(
+    "not_configured",
+    "No Agent Platform credentials. Send the X-MSP-Token, X-MSP-Tenant-Id, and X-MSP-Host headers.",
+    False,
 )

@@ -1,26 +1,28 @@
-import json
 from collections.abc import Callable
 from typing import Annotated
 
 from mcp.server.fastmcp import FastMCP
+from mcp.types import ToolAnnotations
 from pydantic import Field
 
+from .._json import dump_json_capped
 from ..api_client import AgentClient, AgentError
 from ._common import NO_TOKEN
 
-# The "SOP author" resource holds an agent's standard-operating-procedure draft.
-# It has five independent fields, each with its own read/write endpoint under
-# /api/agents/:id/sop-author/<field>. Every write sends {"value": ...}.
+# The "SOP author" resource holds an agent's standard-operating-procedure
+# draft. It has five independent fields, each with its own read/write
+# endpoint under /api/agents/:id/sop-author/<field>. Every write sends
+# {"value": ...}.
 #
-# Although each field has its own endpoint (unlike the permissions/evaluation/
-# approval trio in agents.py, which share one literal PUT /api/agents/:id), all
-# five fields still live on the same underlying agent record (the "sopAuthor"
-# sub-document keyed by agentId). Treat concurrent writes to this agent's SOP
-# fields the same way: do not update them from two calls at once.
+# Although each field has its own endpoint (unlike the permissions/
+# evaluation/approval trio in agents.py, which share one literal PUT
+# /api/agents/:id), all five fields still live on the same underlying agent
+# record. Treat concurrent writes to this agent's SOP fields the same way:
+# do not update them from two calls at once.
 #
-# This is a documentation/planning artifact (the agent's written SOP), distinct
-# from the tool-permission/evaluation/approval settings in agents.py, which
-# govern the agent's actual runtime behavior.
+# This is a documentation/planning artifact (the agent's written SOP),
+# distinct from the tool-permission/evaluation/approval settings in
+# agents.py, which govern the agent's actual runtime behavior.
 
 _NAME = "/name"
 _SOURCE = "/source"
@@ -39,40 +41,32 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
 
     # ----- name -----------------------------------------------------------
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     async def mspbotsagent_get_sop_name(
-        agent_id: Annotated[str, Field(description="The agent to read. Required.")],
+        agent_id: Annotated[str, Field(description="Agent to read.")],
     ) -> str:
-        """Read the agent's SOP name.
-
-        Returns the current name as JSON.
-        """
+        """Read the agent's SOP name."""
         client = client_factory()
         if client is None:
             return NO_TOKEN
         try:
             result = await client.get(_path(agent_id, _NAME))
+            return dump_json_capped(result)
         except AgentError as e:
-            return f"Error: {e}"
-        return json.dumps(result, indent=2, ensure_ascii=False)
+            return e.to_envelope()
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(idempotentHint=True))
     async def mspbotsagent_set_sop_name(
-        agent_id: Annotated[str, Field(description="The agent to update. Required.")],
+        agent_id: Annotated[str, Field(description="Agent to update.")],
         value: Annotated[
-            str, Field(description="New name (non-empty, <= 60 chars). Required.")
+            str, Field(description="New name, non-empty and at most 60 characters.")
         ],
     ) -> str:
         """Set the agent's SOP name.
 
-        The name must be a non-empty string of at most 60 characters and must be
-        unique within the tenant (uniqueness is enforced by the server). It
-        cannot be cleared — always provide a real name.
-
-        Do not update this agent's SOP fields from two calls at once — they
-        share the same underlying record and concurrent writes can race.
-
-        Returns the updated record as JSON.
+        Must be non-empty, at most 60 characters, and unique within the
+        tenant (enforced server-side). Cannot be cleared. Do not call this
+        twice concurrently for the same agent.
         """
         client = client_factory()
         if client is None:
@@ -84,195 +78,160 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
             return f"Error: name must be at most {_MAX_NAME_LEN} characters"
         try:
             result = await client.put(_path(agent_id, _NAME), {"value": value})
+            return dump_json_capped(result)
         except AgentError as e:
-            return f"Error: {e}"
-        return json.dumps(result, indent=2, ensure_ascii=False)
+            return e.to_envelope()
 
     # ----- source ---------------------------------------------------------
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     async def mspbotsagent_get_sop_source(
-        agent_id: Annotated[str, Field(description="The agent to read. Required.")],
+        agent_id: Annotated[str, Field(description="Agent to read.")],
     ) -> str:
-        """Read the agent's SOP source (the raw task description it was authored from).
-
-        Returns the current source as JSON (may be null).
-        """
+        """Read the agent's SOP source — the raw task description it was authored from."""
         client = client_factory()
         if client is None:
             return NO_TOKEN
         try:
             result = await client.get(_path(agent_id, _SOURCE))
+            return dump_json_capped(result)
         except AgentError as e:
-            return f"Error: {e}"
-        return json.dumps(result, indent=2, ensure_ascii=False)
+            return e.to_envelope()
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(idempotentHint=True))
     async def mspbotsagent_set_sop_source(
-        agent_id: Annotated[str, Field(description="The agent to update. Required.")],
+        agent_id: Annotated[str, Field(description="Agent to update.")],
         value: Annotated[
-            str | None, Field(description="New source text, or null to clear. Required.")
+            str | None, Field(description="New source text, or null to clear.")
         ],
     ) -> str:
-        """Set (or clear) the agent's SOP source.
+        """Set or clear the agent's SOP source.
 
-        Pass a string to set the source, or pass null to clear it. `value` is
-        required so clearing is always explicit.
-
-        Do not update this agent's SOP fields from two calls at once — they
-        share the same underlying record and concurrent writes can race.
-
-        Returns the updated record as JSON.
+        value is required so clearing (null) is always explicit. Do not
+        call this twice concurrently for the same agent.
         """
         client = client_factory()
         if client is None:
             return NO_TOKEN
         try:
             result = await client.put(_path(agent_id, _SOURCE), {"value": value})
+            return dump_json_capped(result)
         except AgentError as e:
-            return f"Error: {e}"
-        return json.dumps(result, indent=2, ensure_ascii=False)
+            return e.to_envelope()
 
     # ----- purpose --------------------------------------------------------
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     async def mspbotsagent_get_sop_purpose(
-        agent_id: Annotated[str, Field(description="The agent to read. Required.")],
+        agent_id: Annotated[str, Field(description="Agent to read.")],
     ) -> str:
-        """Read the agent's SOP purpose (markdown).
-
-        Returns the current purpose markdown as JSON.
-        """
+        """Read the agent's SOP purpose (markdown)."""
         client = client_factory()
         if client is None:
             return NO_TOKEN
         try:
             result = await client.get(_path(agent_id, _PURPOSE))
+            return dump_json_capped(result)
         except AgentError as e:
-            return f"Error: {e}"
-        return json.dumps(result, indent=2, ensure_ascii=False)
+            return e.to_envelope()
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(idempotentHint=True))
     async def mspbotsagent_set_sop_purpose(
-        agent_id: Annotated[str, Field(description="The agent to update. Required.")],
+        agent_id: Annotated[str, Field(description="Agent to update.")],
         value: Annotated[
             str,
             Field(
-                description=(
-                    'Purpose markdown, e.g. "**Produces:** ...\\n**Boundary:** ...". '
-                    "Required."
-                )
+                description='Purpose markdown, e.g. "**Produces:** ...\\n**Boundary:** ...".'
             ),
         ],
     ) -> str:
-        """Set the agent's SOP purpose.
+        """Set the agent's SOP purpose: what it produces and its boundaries.
 
-        Describes what the SOP produces and its boundaries. Accepts markdown.
-
-        Do not update this agent's SOP fields from two calls at once — they
-        share the same underlying record and concurrent writes can race.
-
-        Returns the updated record as JSON.
+        Accepts markdown. Do not call this twice concurrently for the same agent.
         """
         client = client_factory()
         if client is None:
             return NO_TOKEN
         try:
             result = await client.put(_path(agent_id, _PURPOSE), {"value": value})
+            return dump_json_capped(result)
         except AgentError as e:
-            return f"Error: {e}"
-        return json.dumps(result, indent=2, ensure_ascii=False)
+            return e.to_envelope()
 
     # ----- data sources ---------------------------------------------------
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     async def mspbotsagent_get_sop_data_sources(
-        agent_id: Annotated[str, Field(description="The agent to read. Required.")],
+        agent_id: Annotated[str, Field(description="Agent to read.")],
     ) -> str:
-        """Read the agent's SOP data-sources list (structured).
-
-        Returns the structured data-sources object as JSON.
-        """
+        """Read the agent's SOP data-sources list (structured)."""
         client = client_factory()
         if client is None:
             return NO_TOKEN
         try:
             result = await client.get(_path(agent_id, _DATA_SOURCES))
+            return dump_json_capped(result)
         except AgentError as e:
-            return f"Error: {e}"
-        return json.dumps(result, indent=2, ensure_ascii=False)
+            return e.to_envelope()
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(idempotentHint=True))
     async def mspbotsagent_set_sop_data_sources(
-        agent_id: Annotated[str, Field(description="The agent to update. Required.")],
+        agent_id: Annotated[str, Field(description="Agent to update.")],
         value: Annotated[
             dict,
             Field(
                 description=(
                     'Object with a "sources" array; each item is '
-                    '{ "integration": "<key>" }.'
+                    '{"integration": "<key>"}, e.g. '
+                    '{"sources": [{"integration": "open-meteo"}]}.'
                 )
             ),
         ],
     ) -> str:
-        """Set the agent's SOP data-sources list (structured object).
+        """Set the agent's SOP data-sources list.
 
-        Each source stores only its integration key. Shape:
-          { "sources": [ { "integration": "open-meteo" }, { "integration": "ms-graph" } ] }
-
-        Do not update this agent's SOP fields from two calls at once — they
-        share the same underlying record and concurrent writes can race.
-
-        Returns the updated record as JSON.
+        Do not call this twice concurrently for the same agent.
         """
         client = client_factory()
         if client is None:
             return NO_TOKEN
         try:
             result = await client.put(_path(agent_id, _DATA_SOURCES), {"value": value})
+            return dump_json_capped(result)
         except AgentError as e:
-            return f"Error: {e}"
-        return json.dumps(result, indent=2, ensure_ascii=False)
+            return e.to_envelope()
 
     # ----- procedure ------------------------------------------------------
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     async def mspbotsagent_get_sop_procedure(
-        agent_id: Annotated[str, Field(description="The agent to read. Required.")],
+        agent_id: Annotated[str, Field(description="Agent to read.")],
     ) -> str:
-        """Read the agent's SOP procedure (markdown).
-
-        Returns the current procedure markdown as JSON.
-        """
+        """Read the agent's SOP procedure (markdown)."""
         client = client_factory()
         if client is None:
             return NO_TOKEN
         try:
             result = await client.get(_path(agent_id, _PROCEDURE))
+            return dump_json_capped(result)
         except AgentError as e:
-            return f"Error: {e}"
-        return json.dumps(result, indent=2, ensure_ascii=False)
+            return e.to_envelope()
 
-    @mcp.tool()
+    @mcp.tool(annotations=ToolAnnotations(idempotentHint=True))
     async def mspbotsagent_set_sop_procedure(
-        agent_id: Annotated[str, Field(description="The agent to update. Required.")],
-        value: Annotated[str, Field(description="Procedure markdown. Required.")],
+        agent_id: Annotated[str, Field(description="Agent to update.")],
+        value: Annotated[str, Field(description="Procedure markdown.")],
     ) -> str:
-        """Set the agent's SOP procedure.
+        """Set the agent's SOP procedure — the ordered steps it follows.
 
-        The ordered steps the agent follows. Accepts markdown (headings, numbered
-        steps, per-step executor/output/done-when/idempotency notes, etc.).
-
-        Do not update this agent's SOP fields from two calls at once — they
-        share the same underlying record and concurrent writes can race.
-
-        Returns the updated record as JSON.
+        Accepts markdown (headings, numbered steps, per-step notes, etc.).
+        Do not call this twice concurrently for the same agent.
         """
         client = client_factory()
         if client is None:
             return NO_TOKEN
         try:
             result = await client.put(_path(agent_id, _PROCEDURE), {"value": value})
+            return dump_json_capped(result)
         except AgentError as e:
-            return f"Error: {e}"
-        return json.dumps(result, indent=2, ensure_ascii=False)
+            return e.to_envelope()

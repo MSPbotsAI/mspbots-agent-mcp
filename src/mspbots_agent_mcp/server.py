@@ -86,6 +86,24 @@ def create_mcp_server(settings: Settings) -> FastMCP:
     # correctly behind a reverse proxy or docker network.
     mcp = FastMCP(
         name="mspbots-agent-mcp",
+        instructions=(
+            "MSPbots Agent Platform lets tenants build and operate AI agents — this "
+            "server exposes that platform's own config API (an internal MSPbots "
+            "product, not a third-party integration). Core concepts: an agent is a "
+            "configured LLM worker with tool permissions and an optional written SOP; "
+            "connectors are the integrations (e.g. ConnectWise) an agent can call; "
+            "skills are packaged capabilities (SKILL.md-based) at mspbots/org/agent "
+            "scope; triggers schedule or event-fire an agent to run automatically. "
+            "Tool groups: mspbotsagent_get_connectors lists the tenant's connector "
+            "inventory; mspbotsagent_*_trigger* manage scheduled/event triggers; "
+            "mspbotsagent_*_agent_permissions/evaluation/approval manage an agent's "
+            "runtime policy (allowed tools, self-review rules, human-approval gates); "
+            "mspbotsagent_*_sop_* manage an agent's SOP draft (name/source/purpose/"
+            "data sources/procedure); mspbotsagent_*_agent_skill manage an agent's "
+            "private skills. Typical flow: check connectors/skills, then configure "
+            "an agent's policy or SOP, then wire up triggers. Credentials come only "
+            "from request headers, never tool arguments."
+        ),
         transport_security=TransportSecuritySettings(enable_dns_rebinding_protection=False),
     )
 

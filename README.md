@@ -187,7 +187,7 @@ python -m mspbots_agent_mcp
 
 ```bash
 curl http://localhost:8080/health
-# {"status": "ok", "service": "mspbots-agent-mcp", "transport": "http"}
+# {"status": "ok"}
 ```
 
 No credentials are required for the health endpoint.
