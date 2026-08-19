@@ -98,22 +98,26 @@ def create_mcp_server(settings: Settings) -> FastMCP:
             "inventory; mspbotsagent_*_trigger* manage scheduled/event triggers; "
             "mspbotsagent_*_agent_permissions/evaluation/approval manage an agent's "
             "runtime policy (allowed tools, self-review rules, human-approval gates); "
+            "mspbotsagent_*_agent_teams/twilio manage the agent's Microsoft Teams "
+            "(Azure Bot) and Twilio Voice channels — enable/configure or disable "
+            "each, with channel secrets always write-only, never read back; "
             "mspbotsagent_*_sop_* manage an agent's SOP draft (name/source/purpose/"
             "data sources/procedure); mspbotsagent_*_agent_skill manage an agent's "
             "private skills. Typical flow: check connectors/skills, then configure "
-            "an agent's policy or SOP, then wire up triggers. Credentials come only "
-            "from request headers, never tool arguments."
+            "an agent's policy, channels, or SOP, then wire up triggers. Credentials "
+            "come only from request headers, never tool arguments."
         ),
         transport_security=TransportSecuritySettings(enable_dns_rebinding_protection=False),
     )
 
     client_factory: Callable[[], AgentClient | None] = lambda: get_client_from_context(settings)
 
-    from .tools import agents, connectors, skills, sop_author, triggers
+    from .tools import agents, channels, connectors, skills, sop_author, triggers
 
     connectors.register(mcp, client_factory)
     triggers.register(mcp, client_factory)
     agents.register(mcp, client_factory)
+    channels.register(mcp, client_factory)
     sop_author.register(mcp, client_factory)
     skills.register(mcp, client_factory)
 
