@@ -39,6 +39,8 @@ EXPECTED_TOOLS = {
     "mspbotsagent_set_sop_data_sources": ({"agent_id", "value"}, {"idempotentHint"}),
     "mspbotsagent_get_sop_procedure": ({"agent_id"}, {"readOnlyHint"}),
     "mspbotsagent_set_sop_procedure": ({"agent_id", "value"}, {"idempotentHint"}),
+    "mspbotsagent_get_sop_section_visibility": ({"agent_id"}, {"readOnlyHint"}),
+    "mspbotsagent_set_sop_section_visibility": ({"agent_id"}, {"idempotentHint"}),
     # skills
     "mspbotsagent_list_agent_skills": ({"agent_id"}, {"readOnlyHint"}),
     "mspbotsagent_create_agent_skill": ({"agent_id", "name", "files"}, set()),

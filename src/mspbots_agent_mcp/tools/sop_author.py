@@ -29,6 +29,7 @@ _SOURCE = "/source"
 _PURPOSE = "/purpose"
 _DATA_SOURCES = "/data-sources-list"
 _PROCEDURE = "/procedure"
+_SECTION_VISIBILITY = "/section-visibility"
 
 _MAX_NAME_LEN = 60
 
@@ -232,6 +233,74 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
             return NO_TOKEN
         try:
             result = await client.put(_path(agent_id, _PROCEDURE), {"value": value})
+            return dump_json_capped(result)
+        except AgentError as e:
+            return e.to_envelope()
+
+    # ----- section visibility ---------------------------------------------
+    # Unlike the five fields above, this one is not a {"value": ...}
+    # envelope — the write body is the flat subset of the four booleans
+    # being changed, and both read and write return all four booleans at
+    # once (DB default false = hidden).
+
+    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
+    async def mspbotsagent_get_sop_section_visibility(
+        agent_id: Annotated[str, Field(description="Agent to read.")],
+    ) -> str:
+        """Read which optional sections show in the agent's SOP document.
+
+        Returns {permissions, teams, twilio, orgChart} booleans — true
+        means that section is shown, false (the default) means it's hidden.
+        """
+        client = client_factory()
+        if client is None:
+            return NO_TOKEN
+        try:
+            result = await client.get(_path(agent_id, _SECTION_VISIBILITY))
+            return dump_json_capped(result)
+        except AgentError as e:
+            return e.to_envelope()
+
+    @mcp.tool(annotations=ToolAnnotations(idempotentHint=True))
+    async def mspbotsagent_set_sop_section_visibility(
+        agent_id: Annotated[str, Field(description="Agent to update.")],
+        permissions: Annotated[
+            bool | None, Field(description="Show the Permissions section. Omit to leave unchanged.")
+        ] = None,
+        teams: Annotated[
+            bool | None,
+            Field(description="Show the Teams (Microsoft Teams channel) section. Omit to leave unchanged."),
+        ] = None,
+        twilio: Annotated[
+            bool | None,
+            Field(description="Show the Twilio (phone channel) section. Omit to leave unchanged."),
+        ] = None,
+        org_chart: Annotated[
+            bool | None, Field(description="Show the Org chart section. Omit to leave unchanged.")
+        ] = None,
+    ) -> str:
+        """Show or hide optional sections in the agent's SOP document.
+
+        Partial update: pass only the sections you want to change, the rest
+        keep their current value. Calling with no arguments changes
+        nothing and just returns the current state. Returns all four
+        booleans after the change. Do not call this twice concurrently for
+        the same agent.
+        """
+        client = client_factory()
+        if client is None:
+            return NO_TOKEN
+        body: dict = {}
+        if permissions is not None:
+            body["permissions"] = permissions
+        if teams is not None:
+            body["teams"] = teams
+        if twilio is not None:
+            body["twilio"] = twilio
+        if org_chart is not None:
+            body["orgChart"] = org_chart
+        try:
+            result = await client.put(_path(agent_id, _SECTION_VISIBILITY), body)
             return dump_json_capped(result)
         except AgentError as e:
             return e.to_envelope()

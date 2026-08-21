@@ -99,7 +99,7 @@ def create_mcp_server(settings: Settings) -> FastMCP:
             "mspbotsagent_*_agent_permissions/evaluation/approval manage an agent's "
             "runtime policy (allowed tools, self-review rules, human-approval gates); "
             "mspbotsagent_*_sop_* manage an agent's SOP draft (name/source/purpose/"
-            "data sources/procedure); mspbotsagent_*_agent_skill manage an agent's "
+            "data sources/procedure/section visibility); mspbotsagent_*_agent_skill manage an agent's "
             "private skills. Typical flow: check connectors/skills, then configure "
             "an agent's policy or SOP, then wire up triggers. Credentials come only "
             "from request headers, never tool arguments."
