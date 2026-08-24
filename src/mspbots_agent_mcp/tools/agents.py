@@ -21,6 +21,30 @@ from ._common import NO_TOKEN
 # documentation/planning artifact rather than enforced runtime policy.
 
 
+_KNOWN_BUILTIN_TOOL_IDS = {
+    "execute",
+    "read_file",
+    "write_file",
+    "edit_file",
+    "download",
+    "task",
+    "start_async_task",
+    "ask",
+}
+
+
+def _invalid_bare_tool_ids(keys: Any) -> list[str]:
+    """Flag permission/interrupt_on keys that look like a built-in tool id
+    (no "." — connector tool ids are always "vendor.action") but aren't one
+    of the real built-ins. Catches a real failure mode: a model guessing a
+    plausible-sounding id (e.g. "send_email") that doesn't exist, which
+    otherwise gets forwarded to the backend silently rather than rejected.
+    """
+    if not isinstance(keys, dict):
+        return []
+    return [k for k in keys if isinstance(k, str) and "." not in k and k not in _KNOWN_BUILTIN_TOOL_IDS]
+
+
 async def _fetch_agent_data(client: AgentClient, agent_id: str) -> Any:
     result = await client.get(f"/api/agents/{agent_id}")
     return (result or {}).get("data", {}) or {}
@@ -84,10 +108,12 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
             dict | None,
             Field(
                 description=(
-                    'Map of tool -> "allow" | "ask" | "deny". Keys are tool ids '
-                    '(built-in ids like "execute", "read_file", or connector ids '
-                    'like "qbo.createInvoice"). Example: '
-                    '{"qbo.createInvoice": "ask", "shell.exec": "deny"}'
+                    'Map of tool -> "allow" | "ask" | "deny". Keys are tool ids: '
+                    "one of the built-ins listed below (bare, no dot), or a "
+                    'connector id in "vendor.action" form (e.g. "qbo.createInvoice" '
+                    "— call mspbotsagent_get_connectors first to find the real one; "
+                    "guessing one is rejected). Example: "
+                    '{"qbo.createInvoice": "ask", "execute": "deny"}'
                 )
             ),
         ] = None,
@@ -190,6 +216,17 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
             return (
                 "Error: provide at least one of 'permission', 'interrupt_on', "
                 "'approval', or 'owners'"
+            )
+
+        bad_ids = _invalid_bare_tool_ids(permission) + _invalid_bare_tool_ids(interrupt_on)
+        if bad_ids:
+            return error_envelope(
+                "invalid_argument",
+                f"Not a recognized built-in tool id: {', '.join(sorted(set(bad_ids)))}. "
+                f"Built-ins are: {', '.join(sorted(_KNOWN_BUILTIN_TOOL_IDS))}. A connector "
+                "tool id must be in \"vendor.action\" form (e.g. \"qbo.createInvoice\") — "
+                "call mspbotsagent_get_connectors first to find the real key.",
+                False,
             )
 
         body: dict = {}

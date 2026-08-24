@@ -10,6 +10,7 @@ import pytest
 from mspbots_agent_mcp.api_client import AgentError
 from mspbots_agent_mcp.config import Settings
 from mspbots_agent_mcp.server import create_mcp_server
+from mspbots_agent_mcp.tools.agents import _invalid_bare_tool_ids
 
 # name -> (required params, expected annotation hint set to True)
 EXPECTED_TOOLS = {
@@ -128,3 +129,20 @@ def test_error_envelope_mapping(status_code, expected_code, expected_retryable):
     assert envelope["error"]["code"] == expected_code
     assert envelope["error"]["retryable"] is expected_retryable
     assert envelope["error"]["message"] == "boom"
+
+
+@pytest.mark.parametrize(
+    "keys,expected_bad",
+    [
+        ({"execute": "deny"}, []),
+        ({"read_file": "ask", "write_file": "allow"}, []),
+        ({"qbo.createInvoice": "ask"}, []),
+        ({"send_email": "deny"}, ["send_email"]),
+        ({"shell.exec": "deny"}, []),  # dotted — assumed to be a real connector id, unverifiable statically
+        ({"execute": "deny", "send_message": "ask"}, ["send_message"]),
+        (None, []),
+        ({}, []),
+    ],
+)
+def test_invalid_bare_tool_ids(keys, expected_bad):
+    assert sorted(_invalid_bare_tool_ids(keys)) == sorted(expected_bad)
