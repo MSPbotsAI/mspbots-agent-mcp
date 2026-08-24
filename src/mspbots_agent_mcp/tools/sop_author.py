@@ -259,12 +259,13 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
     ) -> str:
         """Record the ordered steps this agent follows, in its SOP.
 
-        "Step one X, step two Y" in an SOP-editing conversation is SOP text
-        to capture verbatim, NOT a live task to execute right now — do not
-        mistake it for an actual customer lookup. Call this as soon as the
-        user states the process, even informally, without waiting for
-        "save this". A STATEMENT of steps, not a question (see
-        mspbotsagent_get_sop_procedure for that). Accepts markdown.
+        Naming a real-sounding entity ("check the ticket", "pull account
+        data", "apply the discount") does NOT mean do it now — there is no
+        live ticket/account here, you're writing a spec, not performing
+        it. Never respond "no real customer to act on" — call this with
+        the steps as given. A STATEMENT of steps, not a question (see
+        mspbotsagent_get_sop_procedure). Call as soon as steps are stated,
+        without waiting for "save this". Accepts markdown.
         """
         client = client_factory()
         if client is None:
@@ -287,9 +288,13 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
     ) -> str:
         """Check which optional sections show in the agent's SOP document.
 
-        Use for "is the Teams section visible on this SOP doc" or "why can't
-        I see the org chart section". Returns {permissions, teams, twilio,
-        orgChart} booleans — true means shown, false (the default) hidden.
+        Use for a QUESTION about current state: "is the Teams section
+        visible", "why can't I see the org chart section". If the user is
+        instead telling you to change it — "show/hide the X section",
+        "turn on/off X" — that's an instruction, use
+        mspbotsagent_set_sop_section_visibility, even though "show" sounds
+        like a query verb. Returns {permissions, teams, twilio, orgChart}
+        booleans — true means shown, false (default) hidden.
         """
         client = client_factory()
         if client is None:

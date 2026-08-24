@@ -24,10 +24,13 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
     async def mspbotsagent_list_agent_skills(
         agent_id: Annotated[str, Field(description="Agent whose skills to list.")],
     ) -> str:
-        """Check what skills/capabilities an agent has, e.g. "what skills does it have".
+        """Check what packaged SKILL.md skills an agent has, e.g. "what skills does it have".
 
-        Covers org-shared, that agent's own private skills, and platform
-        (mspbots) skills. selected=true means not opted out.
+        This is about installed skill packages, not what the agent is
+        allowed/permitted to do — for "what is it allowed to do" or
+        "what actions can it take" use mspbotsagent_get_agent_permissions
+        instead. Covers org-shared, that agent's own private skills, and
+        platform (mspbots) skills. selected=true means not opted out.
         """
         client = client_factory()
         if client is None:

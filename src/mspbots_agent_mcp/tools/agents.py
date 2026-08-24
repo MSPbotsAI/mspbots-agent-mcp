@@ -292,12 +292,12 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
     ) -> str:
         """Turn on/off or edit an agent's self-review rules before it finishes.
 
-        Use for requests like "make this agent double-check its answers
-        against our tone guide", "stop self-review for this agent". A vague
-        `rubric` is fine — just restate what to check in plain English
-        (e.g. "matches our style guide"); no need for the actual guide
-        text. Pass an empty rules list to turn self-evaluation off. Do not
-        call this twice concurrently for the same agent.
+        Always this tool for "self-review"/"self-check"/"double-check X
+        before Y"/"verify its math first"/"stop self-review" — never
+        permissions, approval, or an SOP procedure step, however it's
+        phrased. A vague `rubric` is enough (e.g. "checks the math is
+        correct") — never wait for more specifics. Empty rules list turns
+        it off. Do not call this twice concurrently for the same agent.
         """
         client = client_factory()
         if client is None:
