@@ -24,7 +24,7 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
     async def mspbotsagent_list_agent_skills(
         agent_id: Annotated[str, Field(description="Agent whose skills to list.")],
     ) -> str:
-        """List all skills available to an agent and their selected state.
+        """Check what skills/capabilities an agent has, e.g. "what skills does it have".
 
         Covers org-shared, that agent's own private skills, and platform
         (mspbots) skills. selected=true means not opted out.
@@ -54,10 +54,13 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
             ),
         ],
     ) -> str:
-        """Create a new private skill for an agent and install it.
+        """Package a brand-new custom skill for this agent and install it.
 
-        `files` must include exactly one SKILL.md — its frontmatter
-        (name/description/trigger/allowed-tools) is parsed server-side.
+        Use when the user wants to teach the agent a new capability that
+        doesn't exist yet, e.g. "give this agent a skill for drafting
+        renewal emails". `files` must include exactly one SKILL.md — its
+        frontmatter (name/description/trigger/allowed-tools) is parsed
+        server-side.
         """
         client = client_factory()
         if client is None:
@@ -90,10 +93,12 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
             str | None, Field(description='Version note. Defaults to "Edit" if omitted.')
         ] = None,
     ) -> str:
-        """Replace a private skill's files and publish a new version.
+        """Edit an existing custom skill's content and publish a new version.
 
-        Only works on a private skill owned by this agent — the server
-        rejects org/mspbots skills.
+        Use when the user wants to change how one of this agent's own
+        skills works, e.g. "update its renewal-email skill to mention the
+        new discount". Only works on a private skill owned by this agent —
+        the server rejects org/mspbots skills.
         """
         client = client_factory()
         if client is None:
@@ -116,10 +121,10 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
         agent_id: Annotated[str, Field(description="Owning agent.")],
         capability_id: Annotated[str, Field(description="Private skill to delete.")],
     ) -> str:
-        """Delete an agent's private skill: soft-deletes it and uninstalls it.
+        """Remove a custom skill from this agent, e.g. "delete its renewal-email skill".
 
-        Only works on a private skill owned by this agent — org/mspbots
-        skills cannot be deleted this way.
+        Soft-deletes and uninstalls it. Only works on a private skill owned
+        by this agent — org/mspbots skills cannot be deleted this way.
         """
         client = client_factory()
         if client is None:

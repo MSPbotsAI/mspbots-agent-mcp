@@ -22,10 +22,12 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
             int, Field(description="Rows per page (max 200).")
         ] = 50,
     ) -> str:
-        """List the scheduled/event triggers configured to run an agent.
+        """Check what's already configured to run this agent automatically.
 
-        A trigger fires the agent automatically: on a cron schedule
-        ("recurring") or on an external integration event ("event").
+        Use for "when does this agent run", "does it run on a schedule",
+        "what's currently triggering it" — the triggers that exist today.
+        For which integration events COULD trigger it (not yet set up),
+        use mspbotsagent_get_trigger_catalog instead.
         """
         client = client_factory()
         if client is None:
@@ -79,10 +81,13 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
             list[str] | None, Field(description="Event names. event only.")
         ] = None,
     ) -> str:
-        """Create a trigger (omit task_id) or update one (pass task_id).
+        """Set up or change when an agent runs automatically, or turn that off.
 
-        Pass task_id to UPDATE an existing trigger (send only the fields you want
-        to change — partial patch). Omit task_id to CREATE a new one.
+        Use for requests like "run this agent every morning at 9am", "fire
+        this agent when a ConnectWise ticket is created", "stop this
+        schedule", "pause this trigger". Pass task_id to UPDATE an existing
+        trigger (send only the fields you want to change — partial patch).
+        Omit task_id to CREATE a new one.
 
         Trigger types:
           - "recurring": runs on a cron schedule. Requires `schedule` (cron, e.g.
@@ -161,7 +166,10 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
     async def mspbotsagent_delete_trigger(
         task_id: Annotated[str, Field(description="Trigger to delete.")],
     ) -> str:
-        """Delete a trigger by its task ID. This cannot be undone."""
+        """Stop and remove a trigger for good — e.g. "delete this schedule".
+
+        Deletes by task ID. This cannot be undone.
+        """
         client = client_factory()
         if client is None:
             return NO_TOKEN
@@ -173,10 +181,13 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
 
     @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     async def mspbotsagent_get_trigger_catalog() -> str:
-        """List the valid integration + event combinations for event triggers.
+        """Check which integration events CAN trigger an agent — not what's already set up.
 
-        Call this before creating an "event" trigger — a combination not in
-        this catalog will be rejected.
+        Use for "which ConnectWise events can fire this agent", "what
+        events are available for triggers" — the catalog of valid
+        combinations. For what's currently configured, use
+        mspbotsagent_list_triggers instead. Call this before creating an
+        "event" trigger — a combination not in this catalog will be rejected.
         """
         client = client_factory()
         if client is None:
@@ -191,10 +202,10 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
     async def mspbotsagent_run_trigger(
         task_id: Annotated[str, Field(description="Trigger to run now.")],
     ) -> str:
-        """Run a trigger once immediately, regardless of its schedule/event.
+        """Run a trigger right now, e.g. "run this schedule now" or "test this trigger".
 
-        Useful for testing a newly created trigger or re-running one without
-        waiting for its next scheduled time or event.
+        Fires immediately regardless of its schedule/event — no need to wait
+        for the next scheduled time or event.
         """
         client = client_factory()
         if client is None:

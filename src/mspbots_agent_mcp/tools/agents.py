@@ -54,10 +54,12 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
     async def mspbotsagent_get_agent_permissions(
         agent_id: Annotated[str, Field(description="Agent to read.")],
     ) -> str:
-        """Read an agent's tool-permission and interrupt settings.
+        """Check what an agent is allowed to do and when it must pause for a human.
 
-        Returns permission (tool -> allow/ask/deny), interruptOn, owners,
-        the agent's available tools, and policyError.
+        Use for questions like "what can this agent do", "is this agent
+        allowed to send emails", "why does it keep asking for approval",
+        "who owns this agent". Returns permission (tool -> allow/ask/deny),
+        interruptOn, owners, the agent's available tools, and policyError.
         """
         client = client_factory()
         if client is None:
@@ -121,7 +123,15 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
             ),
         ] = None,
     ) -> str:
-        """Update an agent's action-governance settings and/or owners (partial). This tool covers
+        """Change what an agent can do, when it must pause for a human, or who owns it.
+
+        Use for requests like "let this agent send emails without asking",
+        "make this agent always ask before deleting anything", "never let
+        it run shell commands", "make Jane an owner of this agent". For a
+        dollar-threshold or other intent-based approval rule (e.g. "any
+        refund over $500 needs approval"), use
+        mspbotsagent_upsert_agent_approval instead.
+        Updates an agent's action-governance settings and/or owners (partial). This tool covers
         the "can it act / must it pause" axis — permission, interrupt_on, approval — plus owners.
         It does NOT set `review` (that is the separate output-quality/self-review axis; use the
         review tool for that).
@@ -208,9 +218,11 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
     async def mspbotsagent_get_agent_evaluation(
         agent_id: Annotated[str, Field(description="Agent to read.")],
     ) -> str:
-        """Read an agent's self-evaluation (review) configuration.
+        """Check whether an agent reviews its own output before finishing.
 
-        Returns review = {rules, max_iterations}, or null if unconfigured.
+        Use for questions like "does this agent double-check its work",
+        "what quality rules does it follow". Returns review = {rules,
+        max_iterations}, or null if unconfigured.
         """
         client = client_factory()
         if client is None:
@@ -238,10 +250,12 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
             int | None, Field(description="Max self-review passes, e.g. 3.")
         ] = None,
     ) -> str:
-        """Set or update an agent's self-evaluation rules.
+        """Turn on/off or edit an agent's self-review rules before it finishes.
 
-        The agent reviews its own output against these rules and may revise
-        it. Pass an empty rules list to turn self-evaluation off. Do not call
+        Use for requests like "make this agent double-check its answers
+        against our tone guide", "stop self-review for this agent". The
+        agent reviews its own output against these rules and may revise it.
+        Pass an empty rules list to turn self-evaluation off. Do not call
         this twice concurrently for the same agent.
         """
         client = client_factory()
@@ -267,9 +281,11 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
     async def mspbotsagent_get_agent_approval(
         agent_id: Annotated[str, Field(description="Agent to read.")],
     ) -> str:
-        """Read an agent's human-in-the-loop approval rules.
+        """Check which of an agent's actions need a human to approve first.
 
-        Returns approval = list of rule objects (may be empty).
+        Use for questions like "does this agent need approval to send
+        refunds", "what needs sign-off before this agent does it". Returns
+        approval = list of rule objects (may be empty).
         """
         client = client_factory()
         if client is None:
@@ -295,11 +311,13 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
             ),
         ],
     ) -> str:
-        """Set or update an agent's human-in-the-loop approval rules.
+        """Require a human's sign-off before an agent takes a sensitive action.
 
-        Each rule gates a sensitive action so a human must approve/reject
-        before the agent proceeds. Pass an empty list to remove all approval
-        gates. Do not call this twice concurrently for the same agent.
+        Use for requests like "make a human approve any refund over $500
+        before this agent sends it". Each rule gates an action so a human
+        must approve/reject before the agent proceeds. Pass an empty list to
+        remove all approval gates. Do not call this twice concurrently for
+        the same agent.
         """
         client = client_factory()
         if client is None:

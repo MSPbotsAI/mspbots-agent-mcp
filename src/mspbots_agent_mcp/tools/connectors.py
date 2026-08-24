@@ -12,12 +12,13 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
 
     @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     async def mspbotsagent_get_connectors() -> str:
-        """List the tenant's Agent Platform connectors and their status.
+        """Check which integrations this tenant has installed or connected.
 
-        Returns one row per connector: name, integration key, scope, managed
-        method, whether it's installed, whether it's currently connected, and
-        a derived status (not_installed / connected / installed_disconnected).
-        The large base64 logo field is stripped to keep the response compact.
+        Use for questions like "what integrations do we have", "is
+        ConnectWise connected", "what connectors can this agent use". Returns
+        one row per connector: name, integration key, scope, managed method,
+        installed/connected flags, and a derived status (not_installed /
+        connected / installed_disconnected). Logo field stripped to stay compact.
         """
         client = client_factory()
         if client is None:

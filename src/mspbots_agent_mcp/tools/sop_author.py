@@ -46,7 +46,11 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
     async def mspbotsagent_get_sop_name(
         agent_id: Annotated[str, Field(description="Agent to read.")],
     ) -> str:
-        """Read the agent's SOP name."""
+        """Check the name of the agent's SOP (Standard Operating Procedure) draft.
+
+        Use when the conversation asks "what is this SOP called" or before
+        renaming it.
+        """
         client = client_factory()
         if client is None:
             return NO_TOKEN
@@ -63,7 +67,7 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
             str, Field(description="New name, non-empty and at most 60 characters.")
         ],
     ) -> str:
-        """Set the agent's SOP name.
+        """Name or rename the agent's SOP draft — e.g. "call this SOP 'Refund Handling'".
 
         Must be non-empty, at most 60 characters, and unique within the
         tenant (enforced server-side). Cannot be cleared. Do not call this
@@ -89,7 +93,11 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
     async def mspbotsagent_get_sop_source(
         agent_id: Annotated[str, Field(description="Agent to read.")],
     ) -> str:
-        """Read the agent's SOP source — the raw task description it was authored from."""
+        """Check the original request/task description this SOP was authored from.
+
+        Use when asked "what was this SOP originally built for" or "show me
+        the raw request this came from".
+        """
         client = client_factory()
         if client is None:
             return NO_TOKEN
@@ -106,10 +114,11 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
             str | None, Field(description="New source text, or null to clear.")
         ],
     ) -> str:
-        """Set or clear the agent's SOP source.
+        """Record or clear the original request this SOP was authored from.
 
-        value is required so clearing (null) is always explicit. Do not
-        call this twice concurrently for the same agent.
+        Use when the user restates or corrects what this SOP was originally
+        asked to do. value is required so clearing (null) is always
+        explicit. Do not call this twice concurrently for the same agent.
         """
         client = client_factory()
         if client is None:
@@ -126,7 +135,11 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
     async def mspbotsagent_get_sop_purpose(
         agent_id: Annotated[str, Field(description="Agent to read.")],
     ) -> str:
-        """Read the agent's SOP purpose (markdown)."""
+        """Check what this agent produces and its boundaries, per its SOP.
+
+        Use for "what does this agent actually do" or "what's out of scope
+        for this agent".
+        """
         client = client_factory()
         if client is None:
             return NO_TOKEN
@@ -146,8 +159,10 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
             ),
         ],
     ) -> str:
-        """Set the agent's SOP purpose: what it produces and its boundaries.
+        """Record what this agent produces and its boundaries, in its SOP.
 
+        Use when the user describes what the agent should produce or where
+        its scope ends, e.g. "it should draft the reply but never send it".
         Accepts markdown. Do not call this twice concurrently for the same agent.
         """
         client = client_factory()
@@ -165,7 +180,11 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
     async def mspbotsagent_get_sop_data_sources(
         agent_id: Annotated[str, Field(description="Agent to read.")],
     ) -> str:
-        """Read the agent's SOP data-sources list (structured)."""
+        """Check which data sources/integrations this agent's SOP relies on.
+
+        Use for "what does this agent pull data from" or "which integrations
+        does this SOP depend on".
+        """
         client = client_factory()
         if client is None:
             return NO_TOKEN
@@ -189,9 +208,14 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
             ),
         ],
     ) -> str:
-        """Set the agent's SOP data-sources list.
+        """Record a system this agent's SOP should pull data from before acting.
 
-        Do not call this twice concurrently for the same agent.
+        Use whenever the user, while describing this SOP, names ANY system
+        it should check or query first — e.g. "it should check inventory
+        via NetSuite", "look up the weather via open-meteo", "pull the
+        account tier from our CRM". This is about declaring the SOP's data
+        sources, not actually querying that system right now. Do not call
+        this twice concurrently for the same agent.
         """
         client = client_factory()
         if client is None:
@@ -208,7 +232,13 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
     async def mspbotsagent_get_sop_procedure(
         agent_id: Annotated[str, Field(description="Agent to read.")],
     ) -> str:
-        """Read the agent's SOP procedure (markdown)."""
+        """Check the step-by-step procedure this agent follows, per its SOP.
+
+        Use when asked about it, e.g. "walk me through what this agent
+        does step by step" or "what's the current process this agent
+        runs". If the user is instead STATING or dictating the steps
+        themselves (not asking), use mspbotsagent_set_sop_procedure.
+        """
         client = client_factory()
         if client is None:
             return NO_TOKEN
@@ -223,9 +253,13 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
         agent_id: Annotated[str, Field(description="Agent to update.")],
         value: Annotated[str, Field(description="Procedure markdown.")],
     ) -> str:
-        """Set the agent's SOP procedure — the ordered steps it follows.
+        """Record the ordered steps this agent follows, in its SOP.
 
-        Accepts markdown (headings, numbered steps, per-step notes, etc.).
+        Use whenever the user states or dictates the process, even
+        informally — "first check the ticket priority, then draft a
+        reply", "step one X, step two Y" — this is a STATEMENT of steps,
+        not a question about them (see mspbotsagent_get_sop_procedure for
+        that). Accepts markdown (headings, numbered steps, per-step notes).
         Do not call this twice concurrently for the same agent.
         """
         client = client_factory()
@@ -247,10 +281,11 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
     async def mspbotsagent_get_sop_section_visibility(
         agent_id: Annotated[str, Field(description="Agent to read.")],
     ) -> str:
-        """Read which optional sections show in the agent's SOP document.
+        """Check which optional sections show in the agent's SOP document.
 
-        Returns {permissions, teams, twilio, orgChart} booleans — true
-        means that section is shown, false (the default) means it's hidden.
+        Use for "is the Teams section visible on this SOP doc" or "why can't
+        I see the org chart section". Returns {permissions, teams, twilio,
+        orgChart} booleans — true means shown, false (the default) hidden.
         """
         client = client_factory()
         if client is None:
@@ -279,7 +314,7 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
             bool | None, Field(description="Show the Org chart section. Omit to leave unchanged.")
         ] = None,
     ) -> str:
-        """Show or hide optional sections in the agent's SOP document.
+        """Show or hide sections in the SOP doc, e.g. "turn on the Teams section".
 
         Partial update: pass only the sections you want to change, the rest
         keep their current value. Calling with no arguments changes
