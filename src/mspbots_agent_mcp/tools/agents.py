@@ -127,10 +127,13 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
 
         Use for requests like "let this agent send emails without asking",
         "make this agent always ask before deleting anything", "never let
-        it run shell commands", "make Jane an owner of this agent". For a
+        it run shell commands", "make Jane an owner of this agent" — this
+        is an ENFORCED, platform-checked gate, not documentation. For a
         dollar-threshold or other intent-based approval rule (e.g. "any
         refund over $500 needs approval"), use
-        mspbotsagent_upsert_agent_approval instead.
+        mspbotsagent_upsert_agent_approval instead. If the user is instead
+        just describing the SOP's scope in prose (e.g. "it should draft
+        but never send"), that's mspbotsagent_set_sop_purpose, not this.
         Updates an agent's action-governance settings and/or owners (partial). This tool covers
         the "can it act / must it pause" axis — permission, interrupt_on, approval — plus owners.
         It does NOT set `review` (that is the separate output-quality/self-review axis; use the
@@ -253,10 +256,11 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
         """Turn on/off or edit an agent's self-review rules before it finishes.
 
         Use for requests like "make this agent double-check its answers
-        against our tone guide", "stop self-review for this agent". The
-        agent reviews its own output against these rules and may revise it.
-        Pass an empty rules list to turn self-evaluation off. Do not call
-        this twice concurrently for the same agent.
+        against our tone guide", "stop self-review for this agent". A vague
+        `rubric` is fine — just restate what to check in plain English
+        (e.g. "matches our style guide"); no need for the actual guide
+        text. Pass an empty rules list to turn self-evaluation off. Do not
+        call this twice concurrently for the same agent.
         """
         client = client_factory()
         if client is None:

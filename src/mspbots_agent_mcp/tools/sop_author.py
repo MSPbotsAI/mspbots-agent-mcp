@@ -161,9 +161,13 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
     ) -> str:
         """Record what this agent produces and its boundaries, in its SOP.
 
-        Use when the user describes what the agent should produce or where
-        its scope ends, e.g. "it should draft the reply but never send it".
-        Accepts markdown. Do not call this twice concurrently for the same agent.
+        Use when the user is DOCUMENTING what the agent should produce or
+        where its scope ends, e.g. "it should draft the reply but never
+        send it" — this writes the SOP's stated scope, not a runtime
+        permission gate. For an enforced restriction the platform actually
+        blocks on (not just documents), use
+        mspbotsagent_upsert_agent_permissions instead. Accepts markdown. Do
+        not call this twice concurrently for the same agent.
         """
         client = client_factory()
         if client is None:
@@ -255,12 +259,12 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
     ) -> str:
         """Record the ordered steps this agent follows, in its SOP.
 
-        Use whenever the user states or dictates the process, even
-        informally — "first check the ticket priority, then draft a
-        reply", "step one X, step two Y" — this is a STATEMENT of steps,
-        not a question about them (see mspbotsagent_get_sop_procedure for
-        that). Accepts markdown (headings, numbered steps, per-step notes).
-        Do not call this twice concurrently for the same agent.
+        "Step one X, step two Y" in an SOP-editing conversation is SOP text
+        to capture verbatim, NOT a live task to execute right now — do not
+        mistake it for an actual customer lookup. Call this as soon as the
+        user states the process, even informally, without waiting for
+        "save this". A STATEMENT of steps, not a question (see
+        mspbotsagent_get_sop_procedure for that). Accepts markdown.
         """
         client = client_factory()
         if client is None:
