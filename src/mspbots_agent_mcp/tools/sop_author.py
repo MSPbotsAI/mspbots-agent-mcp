@@ -278,8 +278,8 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
 
     # ----- section visibility ---------------------------------------------
     # Unlike the five fields above, this one is not a {"value": ...}
-    # envelope — the write body is the flat subset of the four booleans
-    # being changed, and both read and write return all four booleans at
+    # envelope — the write body is the flat subset of the five booleans
+    # being changed, and both read and write return all five booleans at
     # once (DB default false = hidden).
 
     @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
@@ -293,8 +293,8 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
         instead telling you to change it — "show/hide the X section",
         "turn on/off X" — that's an instruction, use
         mspbotsagent_set_sop_section_visibility, even though "show" sounds
-        like a query verb. Returns {permissions, teams, twilio, orgChart}
-        booleans — true means shown, false (default) hidden.
+        like a query verb. Returns {permissions, teams, twilio, orgChart,
+        humanInLoop} booleans — true means shown, false (default) hidden.
         """
         client = client_factory()
         if client is None:
@@ -322,12 +322,16 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
         org_chart: Annotated[
             bool | None, Field(description="Show the Org chart section. Omit to leave unchanged.")
         ] = None,
+        human_in_loop: Annotated[
+            bool | None,
+            Field(description="Show the Human in the loop (approval intents) section. Omit to leave unchanged."),
+        ] = None,
     ) -> str:
         """Show or hide sections in the SOP doc, e.g. "turn on the Teams section".
 
         Partial update: pass only the sections you want to change, the rest
         keep their current value. Calling with no arguments changes
-        nothing and just returns the current state. Returns all four
+        nothing and just returns the current state. Returns all five
         booleans after the change. Do not call this twice concurrently for
         the same agent.
         """
@@ -343,6 +347,8 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
             body["twilio"] = twilio
         if org_chart is not None:
             body["orgChart"] = org_chart
+        if human_in_loop is not None:
+            body["humanInLoop"] = human_in_loop
         try:
             result = await client.put(_path(agent_id, _SECTION_VISIBILITY), body)
             return dump_json_capped(result)
