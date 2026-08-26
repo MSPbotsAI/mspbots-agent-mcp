@@ -78,10 +78,11 @@ async def test_tools_list_snapshot():
     # needs to call these tools correctly — confirmed by cross-checking
     # origin/main's content during a rebase conflict.
     # mspbotsagent_clear_sop_section joins this list for the same reason:
-    # it's a destructive, irreversible, multi-branch tool (9 section
-    # values, each with a different real-world effect) where an agent
-    # picking the wrong one can't be undone — the per-section effect table
-    # is load-bearing, not decorative (PRD-17514).
+    # it's a destructive, irreversible, multi-branch tool (5 section
+    # values, each with a different real-world effect, plus the excluded-
+    # sections note) where an agent picking the wrong one can't be undone —
+    # the per-section effect table is load-bearing, not decorative
+    # (PRD-17514, scope narrowed to 5 sections per Leo Yang's later comment).
     _LONG_DESCRIPTION_EXCEPTIONS = {
         "mspbotsagent_upsert_trigger",
         "mspbotsagent_upsert_agent_permissions",
@@ -171,12 +172,8 @@ async def test_clear_sop_section_has_real_enum_constraint():
     tool = next(t for t in tools if t.name == "mspbotsagent_clear_sop_section")
     section_schema = tool.inputSchema["properties"]["section"]
     assert set(section_schema.get("enum", [])) == {
-        "dataSources",
-        "inputs",
-        "triggers",
         "evaluation",
         "humanInLoop",
-        "permissions",
         "teams",
         "twilio",
         "orgChart",
@@ -208,5 +205,5 @@ async def test_clear_sop_section_rejects_unknown_section_before_calling_api():
         await mcp.call_tool(
             "mspbotsagent_clear_sop_section", {"agent_id": "a1", "section": "not_a_real_section"}
         )
-    assert "dataSources" in str(exc_info.value)
+    assert "evaluation" in str(exc_info.value)
     assert "called" not in captured, "must reject before ever calling the API"

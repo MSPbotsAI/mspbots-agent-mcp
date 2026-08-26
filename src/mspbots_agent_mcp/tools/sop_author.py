@@ -362,45 +362,35 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
         agent_id: Annotated[str, Field(description="Agent to update.")],
         section: Annotated[
             Literal[
-                "dataSources",
-                "inputs",
-                "triggers",
                 "evaluation",
                 "humanInLoop",
-                "permissions",
                 "teams",
                 "twilio",
                 "orgChart",
             ],
-            Field(
-                description=(
-                    "Which module's underlying data to destroy. inputs and "
-                    "triggers are the same module (triggers is an alias)."
-                )
-            ),
+            Field(description="Which module's underlying data to destroy."),
         ],
     ) -> str:
         """Permanently delete one whole SOP Author module's underlying data.
 
         Use when the operator says remove/wipe/reset an ENTIRE module —
-        "delete the Triggers section", "wipe the Teams channel", "reset
-        this agent's permissions". Per-section effect: dataSources empties
-        the data-sources list and turns off the matching connectors;
-        inputs (alias triggers) deletes ALL trigger tasks + cron, stopping
-        live scheduling IMMEDIATELY; evaluation clears self-review rules;
-        humanInLoop clears approval gates; permissions RESETS to Full
-        autonomy (per-tool perms + interrupts only — does NOT touch
-        approval gates, that's humanInLoop); teams deletes the Teams
+        "wipe the Teams channel", "reset this agent's evaluation rules".
+        Per-section effect: evaluation clears self-review rules;
+        humanInLoop clears approval gates; teams deletes the Teams
         channel config (app id, client secret, senders) and hides it;
         twilio deletes the Twilio Voice config (auth token, greeting,
         transfer, voice params) and hides it; orgChart clears the owning
         seat + participants and hides it.
 
-        Irreversible, no undo — confirm intent first, especially inputs
-        (stops live schedules) and teams/twilio (destroys stored
-        credentials). Idempotent: clearing an already-empty module is a
-        harmless no-op. Do not call concurrently with other writes to the
-        same agent's SOP.
+        Only these 5 modules are supported (per PRD-17514 scope narrowing)
+        — dataSources, inputs/triggers, and permissions are NOT supported
+        here; use their dedicated tools instead (mspbotsagent_set_sop_data_sources,
+        mspbotsagent_delete_trigger, mspbotsagent_upsert_agent_permissions).
+
+        Irreversible, no undo — confirm intent first, especially
+        teams/twilio (destroys stored credentials). Idempotent: clearing
+        an already-empty module is a harmless no-op. Do not call
+        concurrently with other writes to the same agent's SOP.
         """
         client = client_factory()
         if client is None:
