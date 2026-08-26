@@ -355,10 +355,14 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
         """Require a human's sign-off before an agent takes a sensitive action.
 
         Use for requests like "make a human approve any refund over $500
-        before this agent sends it". Each rule gates an action so a human
-        must approve/reject before the agent proceeds. Pass an empty list to
-        remove all approval gates. Do not call this twice concurrently for
-        the same agent.
+        before this agent sends it".
+
+        rules FULL REPLACES the list, it does not append — read via
+        mspbotsagent_get_agent_approval first, then pass the whole updated
+        array back. Empty list clears all gates.
+
+        Shares one PUT with the permissions/evaluation tools — never run
+        two of the three concurrently on the same agent.
         """
         client = client_factory()
         if client is None:
