@@ -6,6 +6,7 @@ AgentError, independent of any real HTTP request.
 """
 
 import pytest
+from mcp.server.fastmcp import FastMCP
 
 from mspbots_agent_mcp.api_client import AgentError
 from mspbots_agent_mcp.config import Settings
@@ -156,3 +157,56 @@ def test_error_envelope_mapping(status_code, expected_code, expected_retryable):
 )
 def test_invalid_bare_tool_ids(keys, expected_bad):
     assert sorted(_invalid_bare_tool_ids(keys)) == sorted(expected_bad)
+
+
+@pytest.mark.asyncio
+async def test_clear_sop_section_has_real_enum_constraint():
+    # SOP §3 (02-开发阶段SOP.md): enum-shaped params must carry a real JSON
+    # Schema `enum`, not just enum values mentioned in prose. section not
+    # only affects tool_use accuracy — it's a destructive action, so a
+    # client that skips the enum entirely would only find out it guessed
+    # wrong after the (irreversible) API call.
+    mcp = create_mcp_server(Settings())
+    tools = await mcp.list_tools()
+    tool = next(t for t in tools if t.name == "mspbotsagent_clear_sop_section")
+    section_schema = tool.inputSchema["properties"]["section"]
+    assert set(section_schema.get("enum", [])) == {
+        "dataSources",
+        "inputs",
+        "triggers",
+        "evaluation",
+        "humanInLoop",
+        "permissions",
+        "teams",
+        "twilio",
+        "orgChart",
+    }
+
+
+@pytest.mark.asyncio
+async def test_clear_sop_section_rejects_unknown_section_before_calling_api():
+    # FastMCP validates `section` against the Literal via pydantic before
+    # the tool function ever runs — confirmed here by asserting the stub
+    # client's delete() is never reached, and that the rejection names the
+    # real enum (not this repo's own {"error": {...}} shape, which only
+    # AgentError.to_envelope() produces — pydantic's ToolError is a
+    # different, but equally real, structured rejection).
+    from mcp.server.fastmcp.exceptions import ToolError
+
+    from mspbots_agent_mcp.tools import sop_author
+
+    captured = {}
+
+    class _StubClient:
+        async def delete(self, path):
+            captured["called"] = path
+            return {"ok": True}
+
+    mcp = FastMCP(name="test")
+    sop_author.register(mcp, lambda: _StubClient())
+    with pytest.raises(ToolError) as exc_info:
+        await mcp.call_tool(
+            "mspbotsagent_clear_sop_section", {"agent_id": "a1", "section": "not_a_real_section"}
+        )
+    assert "dataSources" in str(exc_info.value)
+    assert "called" not in captured, "must reject before ever calling the API"

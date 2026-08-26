@@ -1,5 +1,5 @@
 from collections.abc import Callable
-from typing import Annotated
+from typing import Annotated, Literal
 
 from mcp.server.fastmcp import FastMCP
 from mcp.types import ToolAnnotations
@@ -361,12 +361,21 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
     async def mspbotsagent_clear_sop_section(
         agent_id: Annotated[str, Field(description="Agent to update.")],
         section: Annotated[
-            str,
+            Literal[
+                "dataSources",
+                "inputs",
+                "triggers",
+                "evaluation",
+                "humanInLoop",
+                "permissions",
+                "teams",
+                "twilio",
+                "orgChart",
+            ],
             Field(
                 description=(
-                    "Which module's underlying data to destroy: dataSources, "
-                    "inputs (alias triggers), evaluation, humanInLoop, "
-                    "permissions, teams, twilio, or orgChart."
+                    "Which module's underlying data to destroy. inputs and "
+                    "triggers are the same module (triggers is an alias)."
                 )
             ),
         ],
@@ -396,6 +405,15 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
         client = client_factory()
         if client is None:
             return NO_TOKEN
+        # No manual enum check here: FastMCP validates `section` against
+        # the Literal above via pydantic *before* this function body ever
+        # runs, so an out-of-enum value never reaches this line — verified
+        # directly (see test_clear_sop_section_rejects_unknown_section).
+        # That rejection surfaces as an MCP-level tool error (a clear
+        # "Input should be 'dataSources', ... or 'orgChart'" message, not
+        # this repo's {"error": {...}} envelope) — a real, if differently-
+        # shaped, structured rejection; a redundant manual check here would
+        # just be dead code.
         try:
             result = await client.delete(f"/api/agents/{agent_id}/sop-author/section/{section}")
             return dump_json_capped(result)
