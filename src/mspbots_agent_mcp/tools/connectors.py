@@ -12,41 +12,48 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
 
     @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     async def mspbotsagent_get_connectors() -> str:
-        """Check which integrations this tenant has installed or connected.
+        """Check which integrations (connectors) this tenant can use — both
+        platform-published and this org's own self-built ones.
 
-        Use for questions like "what integrations do we have", "is
-        ConnectWise connected", "what connectors can this agent use". Returns
-        one row per connector: name, integration key, scope, managed method,
-        installed/connected flags, and a derived status (not_installed /
-        connected / installed_disconnected). Logo field stripped to stay compact.
+        Use for "what integrations do we have", "is ConnectWise
+        connected", "do we have a custom/internal MCP connector set up".
+        One row per connector, tagged by org (false = platform, true =
+        org-built), with id/name/integration/scope/managed plus a status
+        (not_installed / connected / installed_disconnected). Discovery
+        only — no credentials, not a way to connect to the target server.
         """
         client = client_factory()
         if client is None:
             return NO_TOKEN
         try:
-            result = await client.get("/api/capabilities/connectors")
+            result = await client.get("/api/capabilities/connectors/catalog")
         except AgentError as e:
             return e.to_envelope()
 
-        items = (result or {}).get("data", {}).get("list", []) or []
+        items = (result or {}).get("data", []) or []
         rows = []
         for c in items:
             enabled = bool(c.get("enabled"))
-            connected = bool(c.get("connected"))
+            raw_connected = c.get("connected")
             if not enabled:
                 status = "not_installed"
-            elif connected:
-                status = "connected"
-            else:
+            elif raw_connected is False:
                 status = "installed_disconnected"
+            else:
+                # True, or not-applicable (undefined, e.g. a non-gateway
+                # platform connector with no per-tenant credential to
+                # track) — both mean "ready".
+                status = "connected"
             rows.append(
                 {
+                    "id": c.get("id"),
+                    "org": c.get("org"),
                     "name": c.get("name"),
                     "integration": c.get("integration"),
                     "scope": c.get("scope"),
                     "managed": c.get("managed"),
                     "installed": enabled,
-                    "connected": connected,
+                    "connected": bool(raw_connected),
                     "status": status,
                 }
             )
