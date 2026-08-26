@@ -348,3 +348,56 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
             return dump_json_capped(result)
         except AgentError as e:
             return e.to_envelope()
+
+    # ----- clear section ----------------------------------------------
+    # Distinct from its two neighbors above: mspbotsagent_set_sop_*(value=
+    # null) clears one content text field of the draft only, and
+    # mspbotsagent_set_sop_section_visibility only hides a module while
+    # keeping its data. This one destroys the backing records/policy/
+    # credentials for a whole module — the same DELETE the app's own
+    # trash-can button calls. See PRD-17514.
+
+    @mcp.tool(annotations=ToolAnnotations(destructiveHint=True, idempotentHint=True))
+    async def mspbotsagent_clear_sop_section(
+        agent_id: Annotated[str, Field(description="Agent to update.")],
+        section: Annotated[
+            str,
+            Field(
+                description=(
+                    "Which module's underlying data to destroy: dataSources, "
+                    "inputs (alias triggers), evaluation, humanInLoop, "
+                    "permissions, teams, twilio, or orgChart."
+                )
+            ),
+        ],
+    ) -> str:
+        """Permanently delete one whole SOP Author module's underlying data.
+
+        Use when the operator says remove/wipe/reset an ENTIRE module —
+        "delete the Triggers section", "wipe the Teams channel", "reset
+        this agent's permissions". Per-section effect: dataSources empties
+        the data-sources list and turns off the matching connectors;
+        inputs (alias triggers) deletes ALL trigger tasks + cron, stopping
+        live scheduling IMMEDIATELY; evaluation clears self-review rules;
+        humanInLoop clears approval gates; permissions RESETS to Full
+        autonomy (per-tool perms + interrupts only — does NOT touch
+        approval gates, that's humanInLoop); teams deletes the Teams
+        channel config (app id, client secret, senders) and hides it;
+        twilio deletes the Twilio Voice config (auth token, greeting,
+        transfer, voice params) and hides it; orgChart clears the owning
+        seat + participants and hides it.
+
+        Irreversible, no undo — confirm intent first, especially inputs
+        (stops live schedules) and teams/twilio (destroys stored
+        credentials). Idempotent: clearing an already-empty module is a
+        harmless no-op. Do not call concurrently with other writes to the
+        same agent's SOP.
+        """
+        client = client_factory()
+        if client is None:
+            return NO_TOKEN
+        try:
+            result = await client.delete(f"/api/agents/{agent_id}/sop-author/section/{section}")
+            return dump_json_capped(result)
+        except AgentError as e:
+            return e.to_envelope()

@@ -42,6 +42,10 @@ EXPECTED_TOOLS = {
     "mspbotsagent_set_sop_procedure": ({"agent_id", "value"}, {"idempotentHint"}),
     "mspbotsagent_get_sop_section_visibility": ({"agent_id"}, {"readOnlyHint"}),
     "mspbotsagent_set_sop_section_visibility": ({"agent_id"}, {"idempotentHint"}),
+    "mspbotsagent_clear_sop_section": (
+        {"agent_id", "section"},
+        {"destructiveHint", "idempotentHint"},
+    ),
     # skills
     "mspbotsagent_list_agent_skills": ({"agent_id"}, {"readOnlyHint"}),
     "mspbotsagent_create_agent_skill": ({"agent_id", "name", "files"}, set()),
@@ -72,9 +76,15 @@ async def test_tools_list_snapshot():
     # started. Trimming them to fit 500 chars would drop guidance an agent
     # needs to call these tools correctly — confirmed by cross-checking
     # origin/main's content during a rebase conflict.
+    # mspbotsagent_clear_sop_section joins this list for the same reason:
+    # it's a destructive, irreversible, multi-branch tool (9 section
+    # values, each with a different real-world effect) where an agent
+    # picking the wrong one can't be undone — the per-section effect table
+    # is load-bearing, not decorative (PRD-17514).
     _LONG_DESCRIPTION_EXCEPTIONS = {
         "mspbotsagent_upsert_trigger",
         "mspbotsagent_upsert_agent_permissions",
+        "mspbotsagent_clear_sop_section",
     }
     for name, (expected_required, expected_hints) in EXPECTED_TOOLS.items():
         tool = by_name[name]
