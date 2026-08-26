@@ -29,7 +29,6 @@ _KNOWN_BUILTIN_TOOL_IDS = {
     "download",
     "task",
     "start_async_task",
-    "ask",
 }
 
 
@@ -127,19 +126,6 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
                 )
             ),
         ] = None,
-        approval: Annotated[
-            dict | None,
-            Field(
-                description=(
-                    'Intent-level approval rules: {"rules": [ ... ]}. Each rule: '
-                    '{"name"?, "intent"?, "triggers"?: [regex], "tools"?: [tool], '
-                    '"decisions"?: [decision]}. Example: '
-                    '{"rules": [{"intent": "refunds over $500", '
-                    '"triggers": ["refund"], "decisions": ["approve","reject"]}]}. '
-                    'Send {"rules": []} to clear all intents.'
-                )
-            ),
-        ] = None,
         owners: Annotated[
             list[dict] | None,
             Field(
@@ -149,7 +135,7 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
             ),
         ] = None,
     ) -> str:
-        """Change what an agent can do, when it must pause for a human, or who owns it.
+        """Change what an agent can do, or who owns it.
 
         Use for requests like "let this agent send emails without asking",
         "make this agent always ask before deleting anything", "never let
@@ -157,19 +143,18 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
         is an ENFORCED, platform-checked gate, not documentation. For a
         dollar-threshold or other intent-based approval rule (e.g. "any
         refund over $500 needs approval"), use
-        mspbotsagent_upsert_agent_approval instead. If the user is instead
-        just describing the SOP's scope in prose (e.g. "it should draft
-        but never send"), that's mspbotsagent_set_sop_purpose, not this.
-        Updates an agent's action-governance settings and/or owners (partial). This tool covers
-        the "can it act / must it pause" axis — permission, interrupt_on, approval — plus owners.
-        It does NOT set `review` (that is the separate output-quality/self-review axis; use the
-        review tool for that).
+        mspbotsagent_upsert_agent_approval instead — this tool no longer
+        handles that. If the user is instead just describing the SOP's
+        scope in prose (e.g. "it should draft but never send"), that's
+        mspbotsagent_set_sop_purpose, not this. Does NOT set `review`
+        either (separate output-quality/self-review axis; use the
+        evaluation tool for that).
 
         Keys are independent — only the ones you pass change; omitted keys are left untouched.
-        Provide at least one of `permission`, `interrupt_on`, `approval`, or `owners`. You may
-        send `owners` alone to just change ownership.
+        Provide at least one of `permission`, `interrupt_on`, or `owners`. You may send
+        `owners` alone to just change ownership.
 
-        HOW THE THREE ACTION KEYS RELATE
+        HOW THE TWO ACTION KEYS RELATE
           • permission   — per-tool baseline gate. {tool -> "allow" | "ask" | "deny"}.
               allow = call freely; deny = never call; ask = pause for a human before calling.
           • interrupt_on — the RICH form of "ask", per-tool. {tool -> true} or
@@ -178,12 +163,6 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
               and interrupt_on for the same tool are two forms of ONE setting (pause), not a
               conflict: a full/empty decision set stays as permission:"ask"; a restricted set
               lives in interrupt_on. allow/deny only ever live in permission.
-          • approval     — INTENT-level, independent of per-tool ask and NOT keyed by tool name.
-              {"rules": [{"name"?, "intent"?, "triggers"?: [regex], "tools"?: [tool],
-              "decisions"?: [decision]}]}. A router judges each pending action against `intent`
-              (the wording) and `triggers` (regexes that pre-filter which calls reach the rule); a
-              match forces approval even if the tool itself is "allow". Send {"rules": []} to
-              clear all intents. Invalid trigger regex is rejected.
 
         KNOWN BUILT-IN TOOL IDS (keys for permission / interrupt_on)
           execute          Run shell commands / code
@@ -193,18 +172,16 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
           download         Hand a finished file to the user
           task             Delegate to a sub-agent
           start_async_task Start a background agent and carry on
-          ask              Ask the user a question (HITL channel; a distinct toggle, not a preset
-                           tool)
         Connector (MCP) tools use their own ids verbatim, e.g. "qbo.createInvoice".
 
-        DECISION VALUES (for interrupt_on.allowed_decisions and approval.decisions)
+        DECISION VALUES (for interrupt_on.allowed_decisions)
           "approve" (Allow)   "edit" (Edit)   "reject" (Deny)
         Deny note: agentos also treats {tool: false} in a `tools` map as equivalent to permission
         "deny" (the two are unioned). Write denies via permission:"deny".
 
-        When the agent has policyError=true, permission / interrupt_on / approval are all
-        unreliable and writing them is refused (they share one assistant policy); owners-only
-        updates are still allowed.
+        When the agent has policyError=true, permission / interrupt_on are unreliable and
+        writing them is refused (they share one assistant policy); owners-only updates are
+        still allowed.
 
         Do not update the same agent from two calls at once — writes are partial and would
         overwrite each other. Returns the updated agent record as JSON.
@@ -212,11 +189,8 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
         client = client_factory()
         if client is None:
             return NO_TOKEN
-        if permission is None and interrupt_on is None and approval is None and owners is None:
-            return (
-                "Error: provide at least one of 'permission', 'interrupt_on', "
-                "'approval', or 'owners'"
-            )
+        if permission is None and interrupt_on is None and owners is None:
+            return "Error: provide at least one of 'permission', 'interrupt_on', or 'owners'"
 
         bad_ids = _invalid_bare_tool_ids(permission) + _invalid_bare_tool_ids(interrupt_on)
         if bad_ids:
@@ -234,14 +208,12 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
             body["permission"] = permission
         if interrupt_on is not None:
             body["interruptOn"] = interrupt_on
-        if approval is not None:
-            body["approval"] = approval
         if owners is not None:
             body["owners"] = owners
 
-        # policyError only makes permission/interruptOn/approval unreliable — guard
-        # those, but let an owners-only update through.
-        if "permission" in body or "interruptOn" in body or "approval" in body:
+        # policyError only makes permission/interruptOn unreliable — guard those,
+        # but let an owners-only update through.
+        if "permission" in body or "interruptOn" in body:
             blocked = await _guard_policy(client, agent_id)
             if blocked:
                 return blocked

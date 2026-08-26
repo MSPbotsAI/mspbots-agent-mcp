@@ -72,8 +72,9 @@ async def test_tools_list_snapshot():
     # These two tools are deliberate exceptions to the SOP's 500-char
     # description guideline (§2.2, a "should" not a hard rule): their
     # docstrings document real, load-bearing usage guidance (trigger types
-    # including "manual"; the permission/interrupt_on/approval relationship
-    # and decision values) added upstream after this repo's SOP refactor
+    # including "manual"; the permission/interrupt_on relationship and
+    # decision values — approval moved out to its own tool per PRD-17564)
+    # added upstream after this repo's SOP refactor
     # started. Trimming them to fit 500 chars would drop guidance an agent
     # needs to call these tools correctly — confirmed by cross-checking
     # origin/main's content during a rebase conflict.
