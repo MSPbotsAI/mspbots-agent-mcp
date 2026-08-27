@@ -93,10 +93,17 @@ async def test_tools_list_snapshot():
     # get a confusing whole-call rejection), and the intake_playbook-not-
     # intake_prompt distinction are each independently load-bearing for
     # calling it correctly (PRD-17557).
+    # mspbotsagent_set_sop_section_visibility joins for the same reason:
+    # the explicit "show/hide however phrased, in whatever language" intent-
+    # matching guidance is the fix for a real tool-selection accuracy problem
+    # (an agent reading only "show" as a query verb would misroute to the
+    # read-only sibling tool) — verbatim text requested by the user, not
+    # decorative.
     _LONG_DESCRIPTION_EXCEPTIONS = {
         "mspbotsagent_upsert_trigger",
         "mspbotsagent_upsert_agent_permissions",
         "mspbotsagent_clear_sop_section",
+        "mspbotsagent_set_sop_section_visibility",
         "mspbotsagent_set_agent_twilio_tenant_config",
     }
     for name, (expected_required, expected_hints) in EXPECTED_TOOLS.items():

@@ -323,13 +323,17 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
             bool | None, Field(description="Show the Org chart section. Omit to leave unchanged.")
         ] = None,
     ) -> str:
-        """Show or hide sections in the SOP doc, e.g. "turn on the Teams section".
+        """Show or hide sections in the SOP doc. Use whenever the customer wants
+        a section shown, opened, made visible, turned on, configured, or set
+        up — and equally when they want one hidden, closed, or turned off.
+        The intent is the same however they phrase it and in whatever
+        language, e.g. "turn on the Teams section", "I want to configure
+        Twilio", "show me the org chart", "hide the Twilio section".
 
         Partial update: pass only the sections you want to change, the rest
-        keep their current value. Calling with no arguments changes
-        nothing and just returns the current state. Returns all four
-        booleans after the change. Do not call this twice concurrently for
-        the same agent.
+        keep their current value. Calling with no arguments changes nothing
+        and just returns the current state. Returns all four booleans after
+        the change. Do not call this twice concurrently for the same agent.
         """
         client = client_factory()
         if client is None:
