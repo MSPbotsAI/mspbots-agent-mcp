@@ -104,6 +104,9 @@ class AgentClient:
     async def put(self, path: str, json_body: Any) -> Any:
         return await self._request("PUT", path, json_body=json_body)
 
+    async def patch(self, path: str, json_body: Any) -> Any:
+        return await self._request("PATCH", path, json_body=json_body)
+
     async def delete(self, path: str) -> Any:
         return await self._request("DELETE", path)
 

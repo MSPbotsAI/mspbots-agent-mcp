@@ -47,6 +47,9 @@ EXPECTED_TOOLS = {
         {"agent_id", "section"},
         {"destructiveHint", "idempotentHint"},
     ),
+    # Twilio tenant config
+    "mspbotsagent_get_agent_twilio_tenant_config": ({"agent_id"}, {"readOnlyHint"}),
+    "mspbotsagent_set_agent_twilio_tenant_config": ({"agent_id"}, {"idempotentHint"}),
     # skills
     "mspbotsagent_list_agent_skills": ({"agent_id"}, {"readOnlyHint"}),
     "mspbotsagent_create_agent_skill": ({"agent_id", "name", "files"}, set()),
@@ -84,10 +87,17 @@ async def test_tools_list_snapshot():
     # sections note) where an agent picking the wrong one can't be undone —
     # the per-section effect table is load-bearing, not decorative
     # (PRD-17514, scope narrowed to 5 sections per Leo Yang's later comment).
+    # mspbotsagent_set_agent_twilio_tenant_config joins for the same reason:
+    # the three-state (omit/null/value) semantics, the system-key rejection
+    # (an agent that doesn't know this exists will send a credential key and
+    # get a confusing whole-call rejection), and the intake_playbook-not-
+    # intake_prompt distinction are each independently load-bearing for
+    # calling it correctly (PRD-17557).
     _LONG_DESCRIPTION_EXCEPTIONS = {
         "mspbotsagent_upsert_trigger",
         "mspbotsagent_upsert_agent_permissions",
         "mspbotsagent_clear_sop_section",
+        "mspbotsagent_set_agent_twilio_tenant_config",
     }
     for name, (expected_required, expected_hints) in EXPECTED_TOOLS.items():
         tool = by_name[name]
@@ -207,4 +217,56 @@ async def test_clear_sop_section_rejects_unknown_section_before_calling_api():
             "mspbotsagent_clear_sop_section", {"agent_id": "a1", "section": "not_a_real_section"}
         )
     assert "evaluation" in str(exc_info.value)
+    assert "called" not in captured, "must reject before ever calling the API"
+
+
+@pytest.mark.asyncio
+async def test_set_twilio_tenant_config_omit_null_value_are_distinguishable():
+    # The whole point of the _UNSET sentinel default (see twilio_tenant_
+    # config.py's module docstring) is that a plain `= None` default
+    # couldn't tell "field absent from the call" apart from "field
+    # explicitly set to null" — both parse to Python None. Exercise all
+    # three states in one call and inspect the exact body sent upstream:
+    # omitted keys must not appear at all (not even as None), an explicit
+    # null must appear as None, and a real value must appear as itself.
+    from mspbots_agent_mcp.tools import twilio_tenant_config
+
+    captured = {}
+
+    class _StubClient:
+        async def patch(self, path, json_body):
+            captured["path"] = path
+            captured["body"] = json_body
+            return {"success": True, "data": {"created": False, "twilio": {}}}
+
+    mcp = FastMCP(name="test")
+    twilio_tenant_config.register(mcp, lambda: _StubClient())
+    await mcp.call_tool(
+        "mspbotsagent_set_agent_twilio_tenant_config",
+        {"agent_id": "a1", "welcome_greeting": None, "language": "en-US"},
+        # idle_seconds, transfer_groups, etc. all omitted — must not appear in body
+    )
+    body = captured["body"]
+    assert captured["path"] == "/api/agents/a1/twilio/tenant-config"
+    assert body == {"welcome_greeting": None, "language": "en-US"}
+    assert "idle_seconds" not in body
+    assert "transfer_groups" not in body
+
+
+@pytest.mark.asyncio
+async def test_set_twilio_tenant_config_rejects_empty_call_before_calling_api():
+    from mspbots_agent_mcp.tools import twilio_tenant_config
+
+    captured = {}
+
+    class _StubClient:
+        async def patch(self, path, json_body):
+            captured["called"] = path
+            return {"success": True, "data": {}}
+
+    mcp = FastMCP(name="test")
+    twilio_tenant_config.register(mcp, lambda: _StubClient())
+    result = await mcp.call_tool("mspbotsagent_set_agent_twilio_tenant_config", {"agent_id": "a1"})
+    text = result[0][0].text
+    assert "at least one field" in text
     assert "called" not in captured, "must reject before ever calling the API"

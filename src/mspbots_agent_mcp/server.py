@@ -101,7 +101,11 @@ def create_mcp_server(settings: Settings) -> FastMCP:
             "mspbotsagent_*_sop_* manage an agent's SOP draft (name/source/purpose/"
             "data sources/procedure/section visibility); mspbotsagent_clear_sop_section "
             "permanently deletes a whole module's underlying data (destructive, unlike "
-            "the tools above); mspbotsagent_*_agent_skill manage an agent's "
+            "the tools above); mspbotsagent_*_agent_twilio_tenant_config manage the "
+            "tenant-editable slice of an agent's Twilio phone channel (greeting, "
+            "language, transfer/idle behavior, tts) — system-level Twilio settings "
+            "(credentials, recording, prompts) are out of scope there; "
+            "mspbotsagent_*_agent_skill manage an agent's "
             "private skills. Typical flow: check connectors/skills, then configure "
             "an agent's policy or SOP, then wire up triggers. Credentials come only "
             "from request headers, never tool arguments."
@@ -111,12 +115,13 @@ def create_mcp_server(settings: Settings) -> FastMCP:
 
     client_factory: Callable[[], AgentClient | None] = lambda: get_client_from_context(settings)
 
-    from .tools import agents, connectors, skills, sop_author, triggers
+    from .tools import agents, connectors, skills, sop_author, triggers, twilio_tenant_config
 
     connectors.register(mcp, client_factory)
     triggers.register(mcp, client_factory)
     agents.register(mcp, client_factory)
     sop_author.register(mcp, client_factory)
+    twilio_tenant_config.register(mcp, client_factory)
     skills.register(mcp, client_factory)
 
     return mcp
