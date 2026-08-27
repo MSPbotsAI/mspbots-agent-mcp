@@ -277,3 +277,28 @@ async def test_set_twilio_tenant_config_rejects_empty_call_before_calling_api():
     text = result[0][0].text
     assert "at least one field" in text
     assert "called" not in captured, "must reject before ever calling the API"
+
+
+@pytest.mark.asyncio
+async def test_twilio_voice_params_carry_the_real_preset_table():
+    # voice/say_voice are NOT free text — an invented or mismatched id gets
+    # the call disconnected by ConversationRelay (per PRD-17557's updated
+    # API doc). There's no "list valid voices" tool for an agent to query,
+    # so the preset table has to live in these two params' own descriptions
+    # to be usable at call time. Guard the load-bearing values (not just
+    # prose) against a future edit silently dropping them.
+    mcp = create_mcp_server(Settings())
+    tools = await mcp.list_tools()
+    tool = next(t for t in tools if t.name == "mspbotsagent_set_agent_twilio_tenant_config")
+    props = tool.inputSchema["properties"]
+    voice_desc = props["voice"]["description"]
+    say_voice_desc = props["say_voice"]["description"]
+
+    # one real id per gender, from the actual PRD-17557 preset table
+    assert "UgBBYS2sOqTuMpoF3BR0" in voice_desc  # male-young-friendly (default)
+    assert "DXFkLCBUTmvXpp2QwZjA" in voice_desc  # female-customer-support (default)
+    assert "Polly.Matthew-Generative" in voice_desc
+    assert "say_voice" in voice_desc  # tells the caller the two must be paired
+
+    assert "Polly." in say_voice_desc  # the required-prefix format
+    assert "voice" in say_voice_desc  # points back at the pairing requirement

@@ -112,10 +112,58 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
         ] = _UNSET,
         idle_farewell: Annotated[str | None, Field(description="Said when giving up after idle_max_prompts. Null/empty = channel default.")] = _UNSET,
         tts_provider: Annotated[
-            str | None, Field(description='"ElevenLabs", "Google", or "Amazon" (case-insensitive). Null = default (ElevenLabs).')
+            str | None,
+            Field(
+                description=(
+                    '"ElevenLabs", "Google", or "Amazon" (case-insensitive). Null = default '
+                    "(ElevenLabs). Must be ElevenLabs to use the ElevenLabs voice ids listed "
+                    "under `voice`'s description."
+                )
+            ),
         ] = _UNSET,
-        voice: Annotated[str | None, Field(description="Voice id. Null/empty = provider default.")] = _UNSET,
-        say_voice: Annotated[str | None, Field(description="Only meaningful with tts_provider=ElevenLabs. Null/empty = auto.")] = _UNSET,
+        voice: Annotated[
+            str | None,
+            Field(
+                description=(
+                    "Conversational voice — what the AI speaks throughout the call. NOT free "
+                    'text: must be a real Twilio catalog id, or the call gets disconnected by '
+                    "ConversationRelay. ElevenLabs: a voice id, e.g. \"UgBBYS2sOqTuMpoF3BR0\" "
+                    '(optionally with a model/tuning suffix like "-flash_v2_5"). Google/Amazon: '
+                    'a catalog id with NO "Google."/"Polly." prefix, e.g. "en-US-Wavenet-D". If '
+                    "the caller only names a gender/tone (\"a female voice\", \"more "
+                    "authoritative\") with no exact id: do NOT invent one and do NOT pass the "
+                    "description itself as the value — both disconnect the call. Instead set "
+                    "tts_provider=ElevenLabs and use a whole matching row (voice AND say_voice "
+                    "together, never just one) from this en-US preset table — male-young-"
+                    "friendly (default): voice=UgBBYS2sOqTuMpoF3BR0, "
+                    "say_voice=Polly.Matthew-Generative; male-customer-support: "
+                    "voice=7EzWGsX10sAS4c9m9cPf, say_voice=Polly.Stephen-Generative; "
+                    "male-authoritative: voice=sB7vwSCyX0tQmU24cW2C, "
+                    "say_voice=Polly.Stephen-Generative; female-customer-support (default): "
+                    "voice=DXFkLCBUTmvXpp2QwZjA, say_voice=Polly.Joanna-Generative; "
+                    "female-young-friendly: voice=kdmDKE6EkgrWrrykO9Qt, "
+                    "say_voice=Polly.Joanna-Generative; female-confident: "
+                    "voice=g6xIsTj2HwM6VR4iXFCw, say_voice=Polly.Danielle-Generative. No exact "
+                    "match for the requested tone? Use the closest row of the same gender, "
+                    "never a made-up value. Null/empty = provider+language default (English "
+                    "defaults are all male)."
+                )
+            ),
+        ] = _UNSET,
+        say_voice: Annotated[
+            str | None,
+            Field(
+                description=(
+                    "System-message voice (transfer prompts, farewell), spoken via <Say> — "
+                    'format MUST include the provider prefix, e.g. "Polly.Matthew-Generative" '
+                    'or "Google.X" (unlike `voice`, which has NO prefix). Pair it with `voice` '
+                    "from the same preset row (see voice's description) — sending only one of "
+                    "the two makes the call sound like two different people. Null/empty = the "
+                    "tenant Twilio account's own default voice, independent of voice's default "
+                    "(usually a mismatch, not a safe fallback)."
+                )
+            ),
+        ] = _UNSET,
     ) -> str:
         """Set/clear tenant-level Twilio channel settings for an agent, one key at a time.
 
@@ -125,8 +173,10 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
         want to change. `enabled: false` PAUSES the channel without losing
         any config or credentials — for a full, irreversible delete
         (including stored credentials) use mspbotsagent_clear_sop_section
-        (section="twilio") instead; the two are not interchangeable. Fails
-        the whole call (writes nothing) if any provided key is invalid or
+        (section="twilio") instead; the two are not interchangeable.
+        `voice`/`say_voice` are NOT free text — an invented or mismatched
+        value disconnects the call; see their own descriptions for the
+        required preset table. Fails the whole call (writes nothing) if any provided key is invalid or
         is a system-level key (credentials, recording, identity_*,
         speech/intake model, intake_prompt — use intake_playbook instead)
         — the server names which key and why. Returns {created, twilio}:
