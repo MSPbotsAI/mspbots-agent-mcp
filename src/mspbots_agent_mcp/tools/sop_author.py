@@ -388,9 +388,12 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
         mspbotsagent_delete_trigger, mspbotsagent_upsert_agent_permissions).
 
         Irreversible, no undo — confirm intent first, especially
-        teams/twilio (destroys stored credentials). Idempotent: clearing
-        an already-empty module is a harmless no-op. Do not call
-        concurrently with other writes to the same agent's SOP.
+        teams/twilio (destroys stored credentials). To just pause the
+        Twilio channel or edit its greeting/language/transfer settings
+        WITHOUT losing config, use mspbotsagent_set_agent_twilio_tenant_config
+        instead — do not reach for this tool on "turn off Twilio" alone.
+        Idempotent: clearing an already-empty module is a harmless no-op.
+        Do not call concurrently with other writes to the same agent's SOP.
         """
         client = client_factory()
         if client is None:

@@ -122,15 +122,18 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
         Three states per key: omit it to leave that setting untouched; null
         (or "" / [] for list-typed keys) clears it back to the channel
         default; a value writes it after validation. Only pass the keys you
-        want to change. Fails the whole call (writes nothing) if any
-        provided key is invalid or is a system-level key (credentials,
-        recording, identity_*, speech/intake model, intake_prompt — use
-        intake_playbook instead) — the server names which key and why.
-        Returns {created, twilio}: `created: true` means this was the
-        agent's first Twilio config and system defaults were seeded
-        alongside your keys; `twilio` is the full saved view (secrets
-        masked as has_*). Do not call this twice concurrently for the same
-        agent.
+        want to change. `enabled: false` PAUSES the channel without losing
+        any config or credentials — for a full, irreversible delete
+        (including stored credentials) use mspbotsagent_clear_sop_section
+        (section="twilio") instead; the two are not interchangeable. Fails
+        the whole call (writes nothing) if any provided key is invalid or
+        is a system-level key (credentials, recording, identity_*,
+        speech/intake model, intake_prompt — use intake_playbook instead)
+        — the server names which key and why. Returns {created, twilio}:
+        `created: true` means this was the agent's first Twilio config and
+        system defaults were seeded alongside your keys; `twilio` is the
+        full saved view (secrets masked as has_*). Do not call this twice
+        concurrently for the same agent.
         """
         client = client_factory()
         if client is None:
