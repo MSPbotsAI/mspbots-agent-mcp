@@ -99,8 +99,16 @@ async def test_tools_list_snapshot():
     # (an agent reading only "show" as a query verb would misroute to the
     # read-only sibling tool) — verbatim text requested by the user, not
     # decorative.
+    # mspbotsagent_get_agent_permissions and mspbotsagent_upsert_agent_permissions
+    # (the latter already listed above) both carry the sparse-map / whole-
+    # record-replace semantics spelled out in full: permission's missing-key-
+    # means-allowed convention, `tools` being a legacy off-switch table (not
+    # the permission map, never write it), and the upsert's omit-a-key-and-
+    # you-erase-it behavior. These are non-obvious, silent-data-loss traps —
+    # trimming them would reintroduce exactly the bug this text documents.
     _LONG_DESCRIPTION_EXCEPTIONS = {
         "mspbotsagent_upsert_trigger",
+        "mspbotsagent_get_agent_permissions",
         "mspbotsagent_upsert_agent_permissions",
         "mspbotsagent_clear_sop_section",
         "mspbotsagent_set_sop_section_visibility",

@@ -77,12 +77,40 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
     async def mspbotsagent_get_agent_permissions(
         agent_id: Annotated[str, Field(description="Agent to read.")],
     ) -> str:
-        """Check what an agent is allowed to do and when it must pause for a human.
+        """Check what an agent is allowed to do and when it must pause for a
+        human ("what can this agent do", "why does it keep asking for
+        approval", "who owns this agent"). To change any of it:
+        mspbotsagent_upsert_agent_permissions.
 
-        Use for questions like "what can this agent do", "is this agent
-        allowed to send emails", "why does it keep asking for approval",
-        "who owns this agent". Returns permission (tool -> allow/ask/deny),
-        interruptOn, owners, the agent's available tools, and policyError.
+        Returns the CURRENT SETTINGS — what is configured right now — never a
+        menu of what you may configure:
+          permission     {tool -> "allow" | "ask" | "deny"}, SPARSE — an
+                         omitted key is ALLOWED. {} therefore means every
+                         built-in runs freely: that is full autonomy, not a
+                         locked-down agent and not a missing configuration.
+          interruptOn    the rich form of "ask", per tool, sparse
+                         (write it back as `interrupt_on`)
+          owners         array of owner ids
+          policyError    true = writes to permission / interruptOn are
+                         refused; owners can still be set
+          tools          LEGACY off-switch table, Record<string, boolean>.
+                         false = that tool is switched off (unioned into
+                         permission "deny"). NOT the permission map and NOT a
+                         list of available tools. {} means nothing has been
+                         switched off — everything is on, which is the normal
+                         healthy state. Read it as switches, never as a
+                         roster; never write it (use permission "deny").
+
+        Nothing in this response lists the tools you may configure, and
+        nothing here has to be non-empty before you can write. The writable
+        keys are FIXED, identical for every agent, and listed in
+        mspbotsagent_upsert_agent_permissions' description; they do not depend
+        on what this call returns. Empty maps mean nothing is configured yet,
+        never that no keys are available. Nothing needs initializing, by you
+        or by the user.
+
+        KEEP THIS RESPONSE. The upsert replaces the whole record, so whatever
+        you do not send back is erased — this is the copy you edit and return.
         """
         client = client_factory()
         if client is None:
@@ -135,36 +163,50 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
             ),
         ] = None,
     ) -> str:
-        """Change what an agent can do, or who owns it.
+        """Change what an agent can do, or who owns it — an ENFORCED,
+        platform-checked gate, not documentation. Read the current record
+        first with mspbotsagent_get_agent_permissions; you cannot write this
+        safely without it.
+        Not this tool: threshold or intent approval rules ("any refund over
+        $500 needs approval") -> mspbotsagent_upsert_agent_approval; scope
+        described in prose ("it should draft but never send") ->
+        mspbotsagent_set_sop_purpose; `review` / self-review quality -> the
+        evaluation tool.
 
-        Use for requests like "let this agent send emails without asking",
-        "make this agent always ask before deleting anything", "never let
-        it run shell commands", "make Jane an owner of this agent" — this
-        is an ENFORCED, platform-checked gate, not documentation. For a
-        dollar-threshold or other intent-based approval rule (e.g. "any
-        refund over $500 needs approval"), use
-        mspbotsagent_upsert_agent_approval instead — this tool no longer
-        handles that. If the user is instead just describing the SOP's
-        scope in prose (e.g. "it should draft but never send"), that's
-        mspbotsagent_set_sop_purpose, not this. Does NOT set `review`
-        either (separate output-quality/self-review axis; use the
-        evaluation tool for that).
+        WHOLE-RECORD REPLACE — THERE IS NO PARTIAL WRITE
+          This call replaces permission, interrupt_on and owners together.
+          A key you omit is a key you ERASE, silently and without an error:
+          sending {"permission": {"read_file": "allow"}} wipes every other
+          tool's setting AND wipes owners. Always: get, edit what the get
+          returned, send it all back — including the parts you are not
+          changing, and including owners even when it is []. There is no way
+          to change one tool by itself.
+          (The get returns `interruptOn`; send it back as `interrupt_on`.)
 
-        Keys are independent — only the ones you pass change; omitted keys are left untouched.
-        Provide at least one of `permission`, `interrupt_on`, or `owners`. You may send
-        `owners` alone to just change ownership.
+          Because the map is sparse, sending permission {} allows everything.
+          That is a real setting, but it is indistinguishable from an agent
+          that was never configured — to record "full autonomy" as a decision,
+          write all seven built-ins as "allow" explicitly.
 
         HOW THE TWO ACTION KEYS RELATE
-          • permission   — per-tool baseline gate. {tool -> "allow" | "ask" | "deny"}.
-              allow = call freely; deny = never call; ask = pause for a human before calling.
-          • interrupt_on — the RICH form of "ask", per-tool. {tool -> true} or
-              {tool -> {"allowed_decisions": [...], "description": "..."}}. Use it when a paused
-              tool should restrict what the reviewer may decide, or show a note. permission:"ask"
-              and interrupt_on for the same tool are two forms of ONE setting (pause), not a
-              conflict: a full/empty decision set stays as permission:"ask"; a restricted set
-              lives in interrupt_on. allow/deny only ever live in permission.
+          permission     per-tool baseline. allow = call freely; deny = never
+                         call; ask = pause for a human before calling.
+          interrupt_on   the rich form of "ask": {tool -> true} or {tool ->
+                         {"allowed_decisions": [...], "description": "..."}}.
+                         Use when a paused tool should limit what the reviewer
+                         may decide. "ask" and interrupt_on are two forms of
+                         ONE setting, not a conflict: a full or empty decision
+                         set stays permission "ask"; a restricted set lives in
+                         interrupt_on. allow/deny only ever live in
+                         permission. allowed_decisions: "approve" | "edit" |
+                         "reject".
 
-        KNOWN BUILT-IN TOOL IDS (keys for permission / interrupt_on)
+        THE KEYS ARE THESE SEVEN AND NOTHING ELSE
+          Connector (MCP) tool ids are NOT valid keys here and are rejected —
+          not "qbo.createInvoice", not "ClickUp", not "Microsoft Graph". This
+          gate covers built-ins only. A connector tool the agent uses is not
+          configured through this tool at all, so there is nothing to look up
+          and nothing to wait for.
           execute          Run shell commands / code
           read_file        Read files in the workspace
           write_file       Create or overwrite files
@@ -172,19 +214,15 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
           download         Hand a finished file to the user
           task             Delegate to a sub-agent
           start_async_task Start a background agent and carry on
-        Connector (MCP) tools use their own ids verbatim, e.g. "qbo.createInvoice".
+          No eighth to discover, no catalog to fetch. Identical for every
+          agent, whatever the get returned.
 
-        DECISION VALUES (for interrupt_on.allowed_decisions)
-          "approve" (Allow)   "edit" (Edit)   "reject" (Deny)
-        Deny note: agentos also treats {tool: false} in a `tools` map as equivalent to permission
-        "deny" (the two are unioned). Write denies via permission:"deny".
-
-        When the agent has policyError=true, permission / interrupt_on are unreliable and
-        writing them is refused (they share one assistant policy); owners-only updates are
-        still allowed.
-
-        Do not update the same agent from two calls at once — writes are partial and would
-        overwrite each other. Returns the updated agent record as JSON.
+        policyError=true -> permission / interrupt_on writes are refused
+        (shared assistant policy); owners can still be set.
+        Never update one agent from two calls at once — the second replace
+        wipes the first. Returns the updated agent record as JSON.
+        Legacy: agentos unions {tool: false} in a `tools` map into "deny";
+        never write that form.
         """
         client = client_factory()
         if client is None:
