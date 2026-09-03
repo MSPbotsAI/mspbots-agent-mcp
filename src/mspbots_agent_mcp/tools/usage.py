@@ -85,10 +85,12 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
         """Tenant usage report: spend, runs, threads, agents, and a per-agent breakdown.
 
         Use for "how much did we spend", "which agent costs most", "who created
-        this agent". Paging is over agents, not time — the totals cover the whole
-        range. If spendUnavailable is true, costs are 0 because the spend backend
-        could not be read: say unavailable, never 0. createdBy is an email when
-        resolvable, else a raw user id. Amounts match the Usage page's CREDITS.
+        this agent". Paging is by agent, not time; range="all" has no daily
+        series (by design). spendUnavailable=true means costs are 0 because the
+        backend couldn't be read — say unavailable, never 0. createdBy is an
+        email or a raw user id. totalSpend/cost are USD-labeled but not
+        confirmed equal to the Usage page's CREDITS — report as spend, not
+        credits.
         """
         client = client_factory()
         if client is None:
