@@ -5,7 +5,7 @@
     "type": "auto",
     "text": "Given MCP server 已注册本次改动, When 走 FastMCP 的 list_tools(), Then 存在 mspbotsagent_get_usage_overview，其 annotations 里 readOnlyHint 为 true，且必填参数集合为空",
     "tests": [
-      "tests/test_tools.py::test_expected_tools_match_registry"
+      "tests/test_tools.py::test_tools_list_snapshot"
     ]
   },
   {
@@ -59,8 +59,8 @@
       "确认工具返回值里没有 debug"
     ],
     "expect": "除 debug 外每个顶层字段相等；page=1、pageSize=10、sortBy=cost、sortOrder=desc、range=7d",
-    "result": "untested",
-    "evidence": ""
+    "result": "pass",
+    "evidence": "2026-09-03 live（agent.mspbots.ai，Asia/Shanghai 租户）：工具返回的顶层字段与前端自己那次 /api/usage/overview 响应相比 missing=[] extra=[]，debug 已剥除，range/page/pageSize/sortBy/sortOrder/timeZone 六个稳定字段逐一相等（7d/1/10/cost/desc/Asia/Shanghai）。breakdownTotal=453，工具输出 2820 字符。证据文件 scratchpad/live_evidence.json 的 cases.TC6"
   },
   {
     "id": "TC7",
@@ -76,8 +76,8 @@
       "非法值三连：range=xx、sopId=-1、sortBy=nope —— 逐个确认不报错，且响应里回落成 7d / 无 sopId / cost"
     ],
     "expect": "前五步每步结果可观察变化；第六步三个非法值均返回 200 且字段回落到默认，没有任何 error envelope",
-    "result": "untested",
-    "evidence": ""
+    "result": "pass",
+    "evidence": "2026-09-03 live：range=30d 改变了 startDate；page=2&pageSize=1 与 page=1 返回不同 sopId；sortBy=runs 的 asc/desc 顺序不同；sopId=<真实 id> 把 breakdownTotal 收窄；source: all=303 task=7 chat=286，且 totalSpend 不变（符合工单「只影响 run 计数」）。非法值：range=xx→7d、sortBy=nope→cost、sopId=-1 均返回 200 且无 error envelope。httpx 日志显示每次请求的 query 只带传入的那一个参数，未传的没有出现——证明 _clean_params 的丢弃语义生效。证据 cases.TC7"
   },
   {
     "id": "TC8",
@@ -92,8 +92,8 @@
       "用 pageSize 调大或翻页找一行 deleted=true，确认它的 createdBy 与 createdAt 都是 null"
     ],
     "expect": "每行都含这两个键；deleted=true 的行两项为 null。若部署不含 08745928，则两键整体缺失 —— 这时记 blocked 并写明部署版本，不要判成实现漏做",
-    "result": "untested",
-    "evidence": "",
+    "result": "pass",
+    "evidence": "2026-09-03 live（pageSize=1000，租户 breakdownTotal=453）：返回 99 行，全部含 createdBy 与 createdAt 两个键；其中邮箱 34 行、非邮箱（UUID 回退）10 行、null 55 行；archived（deleted=true）55 行且这两个字段全为 null。前置条件已核：08745928 经 git merge-base --is-ancestor 实测已在 mb-platform-agent 的 origin/release-aks 与 origin/INT 上。证据 cases.TC8",
     "notes": "这条的前置条件是 OQ-3。部署版本确认不了就记 blocked，别改用例去迁就"
   }
 ]
