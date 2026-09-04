@@ -1,0 +1,118 @@
+[
+  {
+    "id": "TC-TRG-001",
+    "ac": "AC1",
+    "text": "Given 用户发出\"can you run a test now\"这类疑问句形式的行动请求, When 助手回复, Then 助手要么已发起执行、要么回复里只有一个确认问题，不出现只陈述事实而不采取后续动作的回复",
+    "type": "manual",
+    "steps": [
+      "在 agent chat 里选一个已配置 manual/recurring 类型 trigger 的 agent",
+      "发送消息：can you run a test now",
+      "观察助手的第一条回复"
+    ],
+    "expect": "回复要么已经带有一次工具调用（run_trigger 已触发）、要么是一句明确的确认问题；不允许出现类似“Yes — there is a … trigger ready”这种只描述现状、不采取行动也不提问的回复",
+    "result": "untested",
+    "evidence": ""
+  },
+  {
+    "id": "TC-TRG-002",
+    "ac": "AC2",
+    "text": "Given 用户已用祈使句明确要求执行（\"run it now\"）, When 助手回复, Then 助手在同一轮直接发起执行，回复中不再出现确认问题",
+    "type": "manual",
+    "steps": [
+      "在 agent chat 里发送：run it now（针对一个已知 trigger）",
+      "观察助手是否在这一轮直接调用工具"
+    ],
+    "expect": "这一轮回复里包含一次工具调用，不再追加确认问题",
+    "result": "untested",
+    "evidence": ""
+  },
+  {
+    "id": "TC-TRG-003",
+    "ac": "AC3",
+    "text": "Given 助手已问过一次确认且用户已批准, When 助手处理批准后的这一轮, Then 助手直接发起执行，不再问第二次",
+    "type": "manual",
+    "steps": [
+      "复现 TC-TRG-001 中助手选择先确认的分支",
+      "对确认问题回复“是”/“可以”",
+      "观察助手下一轮的回复"
+    ],
+    "expect": "下一轮直接发起执行，不再出现第二次确认问题",
+    "result": "untested",
+    "evidence": ""
+  },
+  {
+    "id": "TC-TRG-004",
+    "ac": "AC4",
+    "text": "Given 执行请求被后端成功接受（返回 id/runId）, When 工具返回结果, Then 返回内容中包含一个格式为 https://<host>/task-runs?taskId=<id>&runId=<runId> 的链接",
+    "type": "auto",
+    "tests": ["tests/test_triggers.py::test_run_trigger_success_includes_view_url"]
+  },
+  {
+    "id": "TC-TRG-005",
+    "ac": "AC4",
+    "text": "Given 执行成功发起, When 助手给出成功提示, Then 提示文本中包含可点的结果链接，或至少包含 UI 路径原文与 task id",
+    "type": "manual",
+    "steps": [
+      "复现 TC-TRG-002，等待助手给出成功提示",
+      "检查提示文本内容"
+    ],
+    "expect": "提示中包含一个可点的链接（指向 Task Runs 页面），或至少写明“Task Runs 页面”这一路径原文加 task id",
+    "result": "untested",
+    "evidence": ""
+  },
+  {
+    "id": "TC-TRG-006",
+    "ac": "AC4",
+    "text": "Given 后端返回的结果里缺少 id 或 runId（异常返回形状）, When 工具处理该结果, Then 工具不因此报错，返回内容中不包含格式错误的链接",
+    "type": "auto",
+    "tests": ["tests/test_triggers.py::test_run_trigger_missing_ids_degrades_without_view_url"]
+  },
+  {
+    "id": "TC-TRG-007",
+    "ac": "AC5",
+    "text": "Given 目标 trigger 已被禁用（后端返回失败）, When 工具处理该失败, Then 返回内容中不包含 view_url 字段，且包含失败原因",
+    "type": "auto",
+    "tests": ["tests/test_triggers.py::test_run_trigger_error_path_has_no_view_url"]
+  },
+  {
+    "id": "TC-TRG-008",
+    "ac": "AC5",
+    "text": "Given 执行未能成功发起, When 助手给出提示, Then 提示中说明失败原因，不出现\"已启动\"等暗示成功的措辞，也不出现结果链接",
+    "type": "manual",
+    "steps": [
+      "选一个已禁用（Enabled=off）的 trigger",
+      "在 agent chat 里发送：run it now",
+      "观察助手回复"
+    ],
+    "expect": "回复说明失败原因（如“该 trigger 已禁用”），不出现“已启动/started”类措辞，不出现结果链接",
+    "result": "untested",
+    "evidence": ""
+  },
+  {
+    "id": "TC-TRG-009",
+    "ac": "AC6",
+    "text": "Given 用户只是询问\"这个 agent 配置了哪些 trigger\"（纯查询意图，非行动请求）, When 助手回复, Then 助手只描述现状，不擅自发起执行",
+    "type": "manual",
+    "steps": [
+      "在 agent chat 里发送：what triggers does this agent have?",
+      "观察助手回复与是否有工具调用副作用"
+    ],
+    "expect": "助手只列出已配置的 trigger，不调用 run_trigger",
+    "result": "untested",
+    "evidence": ""
+  },
+  {
+    "id": "TC-TRG-010",
+    "ac": "AC4",
+    "text": "Given 两个不同租户各自触发一次执行, When 各自拿到返回的 view_url, Then 每个 view_url 中的 host 只对应各自请求所携带的租户 host，不出现跨租户的 host 值",
+    "type": "auto",
+    "tests": ["tests/test_triggers.py::test_run_trigger_view_url_uses_requesting_tenant_host"]
+  },
+  {
+    "id": "TC-TRG-011",
+    "ac": "AC4",
+    "text": "Given 后端返回的 id/runId 中含 URL 特殊字符（边界场景）, When 工具拼接 view_url, Then 生成的链接经过正确编码，不产生断裂或可被利用的 URL",
+    "type": "auto",
+    "tests": ["tests/test_triggers.py::test_run_trigger_view_url_encodes_special_characters"]
+  }
+]
