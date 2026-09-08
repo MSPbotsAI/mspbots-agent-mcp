@@ -12,15 +12,16 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
 
     @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     async def mspbotsagent_get_connectors() -> str:
-        """Check which integrations (connectors) this tenant can use — both
-        platform-published and this org's own self-built ones.
+        """TENANT-WIDE connector inventory. No agent_id — same for every agent.
 
-        Use for "what integrations do we have", "is ConnectWise
-        connected", "do we have a custom/internal MCP connector set up".
-        One row per connector, tagged by org (false = platform, true =
-        org-built), with id/name/integration/scope/managed plus a status
-        (not_installed / connected / installed_disconnected). Discovery
-        only — no credentials, not a way to connect to the target server.
+        Use for tenant-level questions ("what integrations do we have", "is
+        ConnectWise connected") or to look up a real `integration` key. For
+        what ONE agent uses, call mspbotsagent_get_sop_data_sources.
+
+        One row per connector: id/name/integration/scope/managed, org (false =
+        platform, true = org-built), status (not_installed / connected /
+        installed_disconnected). Discovery only — no credentials, not a way
+        to connect to that server.
         """
         client = client_factory()
         if client is None:

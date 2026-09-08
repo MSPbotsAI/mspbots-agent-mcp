@@ -18,6 +18,9 @@ own configuration:
 
 - "What connectors does this tenant have hooked up, and which are actually
   connected right now?" → `mspbotsagent_get_connectors`
+- "What connectors can *this agent* use / what does it pull data from?" →
+  `mspbotsagent_get_sop_data_sources` (agent-scoped — not
+  `mspbotsagent_get_connectors`, which is tenant-wide)
 - "Make this agent run every Monday morning to summarize open tickets" →
   `mspbotsagent_upsert_trigger` (type `recurring`)
 - "Kick this agent off automatically whenever a new ConnectWise ticket comes
@@ -44,6 +47,11 @@ own configuration:
 | Tool | 功能 | 参数 |
 |---|---|---|
 | `mspbotsagent_get_connectors` | 列出当前租户的所有 connector，返回每个的名称、是否已安装、连接状态 | 无 |
+
+`mspbotsagent_get_connectors` is **tenant-scoped**: it takes no `agent_id` and
+returns the same inventory regardless of which agent is being configured. For
+the connectors a *specific* agent is declared to use, see
+[`mspbotsagent_get_sop_data_sources`](#agent-sop-author) instead.
 
 `mspbotsagent_get_connectors` returns one row per connector:
 
@@ -140,6 +148,12 @@ dataSources `value` 结构（每个 source 只存 `integration`，无 `precondit
   ]
 }
 ```
+
+> `mspbotsagent_get_sop_data_sources` is the **agent-scoped** answer to
+> "what connectors does this agent use" — it reports what the SOP declares,
+> not live connection health. Pair it with
+> [`mspbotsagent_get_connectors`](#connectors) when the caller also wants to
+> know whether those connectors are actually connected.
 
 > Backing endpoints: `GET|PUT /api/agents/:id/sop-author/{name,source,purpose,data-sources-list,procedure}`。
 

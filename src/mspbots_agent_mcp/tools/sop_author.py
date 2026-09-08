@@ -184,10 +184,16 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
     async def mspbotsagent_get_sop_data_sources(
         agent_id: Annotated[str, Field(description="Agent to read.")],
     ) -> str:
-        """Check which data sources/integrations this agent's SOP relies on.
+        """The connectors/integrations ONE agent is declared to use — the data
+        sources listed in that agent's SOP.
 
-        Use for "what does this agent pull data from" or "which integrations
-        does this SOP depend on".
+        Use for every agent-scoped connector question: "what connectors can
+        this agent use", "which connectors does this agent have available",
+        "what does this agent pull data from", "which integrations does this
+        SOP depend on". For the tenant's whole inventory instead, use
+        mspbotsagent_get_connectors.
+
+        Reports what the SOP declares, not live connection health.
         """
         client = client_factory()
         if client is None:
@@ -220,6 +226,8 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
         account tier from our CRM". This is about declaring the SOP's data
         sources, not actually querying that system right now. Do not call
         this twice concurrently for the same agent.
+
+        Read it back with mspbotsagent_get_sop_data_sources.
         """
         client = client_factory()
         if client is None:
