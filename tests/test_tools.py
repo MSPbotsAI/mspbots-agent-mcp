@@ -108,6 +108,15 @@ async def test_tools_list_snapshot():
     # the permission map, never write it), and the upsert's omit-a-key-and-
     # you-erase-it behavior. These are non-obvious, silent-data-loss traps —
     # trimming them would reintroduce exactly the bug this text documents.
+    # mspbotsagent_get_sop_data_sources joins for the same reason: its rows
+    # carry connection status, and `connection` is a single value with two
+    # separately load-bearing traps — "unavailable" means the gateway status
+    # could not be read, NOT disconnected (reporting it as "not connected" is
+    # a wrong answer about a working connector), and because agent level wins
+    # over org level, `connection` reads only "agent" when both are connected,
+    # so the tenant half is only visible in `tenantConnected`. A model that
+    # gets the field list without those two rules will confidently misreport
+    # whether a data source works. Field semantics per product's spec, 2026-09-08.
     _LONG_DESCRIPTION_EXCEPTIONS = {
         "mspbotsagent_upsert_trigger",
         "mspbotsagent_get_agent_permissions",
@@ -115,6 +124,7 @@ async def test_tools_list_snapshot():
         "mspbotsagent_clear_sop_section",
         "mspbotsagent_set_sop_section_visibility",
         "mspbotsagent_set_agent_twilio_tenant_config",
+        "mspbotsagent_get_sop_data_sources",
     }
     for name, (expected_required, expected_hints) in EXPECTED_TOOLS.items():
         tool = by_name[name]

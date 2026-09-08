@@ -5,7 +5,7 @@ from mcp.server.fastmcp import FastMCP
 from mcp.types import ToolAnnotations
 from pydantic import Field
 
-from .._json import dump_json_capped
+from .._json import dump_json
 from ..api_client import AgentClient, AgentError
 from ._common import NO_TOKEN
 
@@ -37,7 +37,7 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
             return NO_TOKEN
         try:
             result = await client.get(f"/api/agents/{agent_id}/skills")
-            return dump_json_capped(result)
+            return dump_json(result)
         except AgentError as e:
             return e.to_envelope()
 
@@ -75,7 +75,7 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
                 f"/api/agents/{agent_id}/skills/create",
                 {"name": name, "files": files},
             )
-            return dump_json_capped(result)
+            return dump_json(result)
         except AgentError as e:
             return e.to_envelope()
 
@@ -115,7 +115,7 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
             result = await client.put(
                 f"/api/agents/{agent_id}/skills/{capability_id}/files", body
             )
-            return dump_json_capped(result)
+            return dump_json(result)
         except AgentError as e:
             return e.to_envelope()
 
@@ -136,6 +136,6 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
             result = await client.delete_with_body(
                 f"/api/agents/{agent_id}/skills", {"id": capability_id}
             )
-            return dump_json_capped(result)
+            return dump_json(result)
         except AgentError as e:
             return e.to_envelope()

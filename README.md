@@ -149,11 +149,46 @@ dataSources `value` 结构（每个 source 只存 `integration`，无 `precondit
 }
 ```
 
+`mspbotsagent_get_sop_data_sources` 读回来的每个 entry 就是一个 connector
+（一个 agent 可用的 MCP server），除了 `integration` 还带连接状态和工具清单：
+
+| 字段 | 类型 | 含义 |
+|---|---|---|
+| `integration` | string | 数据源 key |
+| `org` | bool，可选 | 该 source 是在组织级添加的时候才有 |
+| `found` | bool | `false` = 引用的 connector 已被删除或禁用，不可用，当不存在处理 |
+| `name` / `description` / `transport` / `endpoint` | string | connector 展示信息及其 MCP endpoint（`found` 时才有） |
+| `connection` | string | 当前连接状态，见下表。**agent 级优先于 org 级** |
+| `tenantConnected` | bool | 组织 / 租户级连接是否存在 |
+| `enabled` | bool | 该 connector 在组织层面是否启用 |
+| `managed` | string，可选 | 网关托管的 connector 为 `"gateway"` |
+| `tools` | array | 该 connector 提供的工具（`{name, label, description}`）；未连接或 discovery 失败时为空 |
+
+`connection` 取值：
+
+| 值 | 含义 | 该怎么对待 |
+|---|---|---|
+| `"agent"` | 该 agent 用自己的账号连上了（agent 级连接） | 可用 |
+| `"org"` | 用的是组织 / 租户级的连接 | 可用 |
+| `"none"` | 未连接（或该连接器被组织禁用） | 不可用，需要用户先去连接 |
+| `"unavailable"` | 网关状态读不到 | ⚠️ **不代表已断开**，只是此刻查不到。不要据此判定"未连接" |
+
+两条容易错的地方，已写进工具 description：
+
+- `connection` 是单值且 agent 优先。**两级同时连上时 `connection` 只显示 `"agent"`**，
+  租户那份要看 `tenantConnected`。目前没有对称的独立 `agentConnected` 布尔字段，
+  agent 级只能靠 `connection === "agent"` 判断。
+- `"none"` 与 `"unavailable"` 必须区别对待：前者是真没连（可提示用户去连），
+  后者只是状态读不到（倾向按仍可用处理，别误报）。
+
+汇总判断：能用 = `found === true` 且 `connection ∈ {agent, org}`（`unavailable` 倒向可用）；
+不能用 = `found === false` 或 `connection === "none"`。
+
 > `mspbotsagent_get_sop_data_sources` is the **agent-scoped** answer to
-> "what connectors does this agent use" — it reports what the SOP declares,
-> not live connection health. Pair it with
-> [`mspbotsagent_get_connectors`](#connectors) when the caller also wants to
-> know whether those connectors are actually connected.
+> "what connectors does this agent use", and its rows carry connection
+> status, so it usually answers "can this agent use X" on its own.
+> [`mspbotsagent_get_connectors`](#connectors) is the tenant-wide inventory
+> — reach for it when the question is not about a particular agent.
 
 > Backing endpoints: `GET|PUT /api/agents/:id/sop-author/{name,source,purpose,data-sources-list,procedure}`。
 

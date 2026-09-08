@@ -3,7 +3,7 @@ from collections.abc import Callable
 from mcp.server.fastmcp import FastMCP
 from mcp.types import ToolAnnotations
 
-from .._json import dump_json_capped
+from .._json import dump_json
 from ..api_client import AgentClient, AgentError
 from ._common import NO_TOKEN
 
@@ -58,4 +58,4 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
                     "status": status,
                 }
             )
-        return dump_json_capped({"count": len(rows), "connectors": rows})
+        return dump_json({"count": len(rows), "connectors": rows})

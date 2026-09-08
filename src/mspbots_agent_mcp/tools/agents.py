@@ -5,7 +5,7 @@ from mcp.server.fastmcp import FastMCP
 from mcp.types import ToolAnnotations
 from pydantic import Field
 
-from .._json import dump_json_capped, error_envelope
+from .._json import dump_json, error_envelope
 from ..api_client import AgentClient, AgentError
 from ._common import NO_TOKEN
 
@@ -126,7 +126,7 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
             "tools": data.get("tools"),
             "policyError": data.get("policyError"),
         }
-        return dump_json_capped(projected)
+        return dump_json(projected)
 
     @mcp.tool(annotations=ToolAnnotations(idempotentHint=True))
     async def mspbotsagent_upsert_agent_permissions(
@@ -258,7 +258,7 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
 
         try:
             result = await client.put(f"/api/agents/{agent_id}", body)
-            return dump_json_capped(result)
+            return dump_json(result)
         except AgentError as e:
             return e.to_envelope()
 
@@ -281,7 +281,7 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
             data = await _fetch_agent_data(client, agent_id)
         except AgentError as e:
             return e.to_envelope()
-        return dump_json_capped({"review": data.get("review")})
+        return dump_json({"review": data.get("review")})
 
     @mcp.tool(annotations=ToolAnnotations(idempotentHint=True))
     async def mspbotsagent_upsert_agent_evaluation(
@@ -322,7 +322,7 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
             review["max_iterations"] = max_iterations
         try:
             result = await client.put(f"/api/agents/{agent_id}", {"review": review})
-            return dump_json_capped(result)
+            return dump_json(result)
         except AgentError as e:
             return e.to_envelope()
 
@@ -345,7 +345,7 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
             data = await _fetch_agent_data(client, agent_id)
         except AgentError as e:
             return e.to_envelope()
-        return dump_json_capped({"approval": data.get("approval")})
+        return dump_json({"approval": data.get("approval")})
 
     @mcp.tool(annotations=ToolAnnotations(idempotentHint=True))
     async def mspbotsagent_upsert_agent_approval(
@@ -386,6 +386,6 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
             result = await client.put(
                 f"/api/agents/{agent_id}", {"approval": {"rules": rules}}
             )
-            return dump_json_capped(result)
+            return dump_json(result)
         except AgentError as e:
             return e.to_envelope()
