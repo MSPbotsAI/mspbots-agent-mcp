@@ -49,6 +49,9 @@ EXPECTED_TOOLS = {
         {"agent_id", "section"},
         {"destructiveHint", "idempotentHint"},
     ),
+    # SOP library (list + synchronous chat)
+    "mspbotsagent_list_sops": (set(), {"readOnlyHint"}),
+    "mspbotsagent_chat_with_sop": ({"sop_id", "message"}, set()),
     # Twilio tenant config
     "mspbotsagent_get_agent_twilio_tenant_config": ({"agent_id"}, {"readOnlyHint"}),
     "mspbotsagent_set_agent_twilio_tenant_config": ({"agent_id"}, {"idempotentHint"}),

@@ -98,8 +98,22 @@ class AgentClient:
     async def get(self, path: str, params: dict | None = None) -> Any:
         return await self._request("GET", path, params=params)
 
-    async def post(self, path: str, json_body: Any = None) -> Any:
-        return await self._request("POST", path, json_body=json_body)
+    async def post(
+        self,
+        path: str,
+        json_body: Any = None,
+        *,
+        read_timeout: float | None = None,
+        retries: int | None = None,
+    ) -> Any:
+        # read_timeout / retries exist for one shape of endpoint: a call that
+        # runs an agent and only answers when the run finishes. Such a call
+        # blows past the 30s default read timeout, and it is NOT idempotent —
+        # retrying a lost response starts a SECOND run rather than recovering
+        # the first. Both defaults stay in place for every other caller.
+        return await self._request(
+            "POST", path, json_body=json_body, read_timeout=read_timeout, retries=retries
+        )
 
     async def put(self, path: str, json_body: Any) -> Any:
         return await self._request("PUT", path, json_body=json_body)
@@ -117,27 +131,40 @@ class AgentClient:
         return await self._request("DELETE", path, json_body=json_body)
 
     async def _request(
-        self, method: str, path: str, params: dict | None = None, json_body: Any = None
+        self,
+        method: str,
+        path: str,
+        params: dict | None = None,
+        json_body: Any = None,
+        read_timeout: float | None = None,
+        retries: int | None = None,
     ) -> Any:
         client = _get_http_client()
         url = f"{self._base_url}{path}"
         headers = self._headers()
         params = self._clean_params(params)
+        timeout = _TIMEOUT if read_timeout is None else httpx.Timeout(
+            connect=_TIMEOUT.connect,
+            read=read_timeout,
+            write=_TIMEOUT.write,
+            pool=_TIMEOUT.pool,
+        )
+        max_retries = _MAX_RETRIES if retries is None else retries
 
         last_exc: Exception | None = None
-        for attempt in range(_MAX_RETRIES + 1):
+        for attempt in range(max_retries + 1):
             try:
                 resp = await client.request(
-                    method, url, headers=headers, params=params, json=json_body
+                    method, url, headers=headers, params=params, json=json_body, timeout=timeout
                 )
             except httpx.RequestError as e:
                 last_exc = e
-                if attempt < _MAX_RETRIES:
+                if attempt < max_retries:
                     await asyncio.sleep(min(2**attempt, _MAX_BACKOFF_SECONDS))
                     continue
                 raise AgentError(0, f"{e or type(e).__name__} (url={url})") from e
 
-            if resp.status_code in _RETRYABLE_STATUS and attempt < _MAX_RETRIES:
+            if resp.status_code in _RETRYABLE_STATUS and attempt < max_retries:
                 delay = self._retry_delay(resp, attempt)
                 await asyncio.sleep(delay)
                 continue

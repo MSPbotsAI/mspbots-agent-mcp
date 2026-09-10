@@ -87,29 +87,25 @@ def create_mcp_server(settings: Settings) -> FastMCP:
     mcp = FastMCP(
         name="mspbots-agent-mcp",
         instructions=(
-            "MSPbots Agent Platform lets tenants build and operate AI agents — this "
-            "server exposes that platform's own config API (an internal MSPbots "
-            "product, not a third-party integration). Concepts: an agent is a "
-            "configured LLM worker with tool permissions and an optional written SOP; "
-            "connectors are the integrations (e.g. ConnectWise) an agent can call; "
-            "skills are packaged capabilities (SKILL.md) at mspbots/org/agent "
-            "scope; triggers schedule or event-fire an agent to run automatically. "
-            "Tool groups: mspbotsagent_get_connectors lists the tenant-wide connector "
-            "inventory, mspbotsagent_get_sop_data_sources the connectors one agent "
-            "uses; mspbotsagent_*_trigger* manage scheduled/event triggers; "
-            "mspbotsagent_*_agent_permissions/evaluation/approval manage an agent's "
-            "runtime policy (allowed tools, self-review, approval gates); "
-            "mspbotsagent_*_sop_* manage an agent's SOP draft (name/source/purpose/"
-            "data sources/procedure/visibility); mspbotsagent_clear_sop_section "
-            "permanently deletes a whole module's data (destructive, unlike "
-            "the tools above); mspbotsagent_*_agent_twilio_tenant_config manage the "
-            "tenant-editable slice of an agent's Twilio phone channel (greeting, "
-            "language, transfer/idle behavior, tts) — system-level Twilio settings "
-            "(credentials, recording, prompts) are out of scope there; "
-            "mspbotsagent_*_agent_skill manage an agent's "
-            "private skills. Typical flow: check connectors/skills, then configure "
-            "policy or SOP, then triggers. Credentials come only "
-            "from request headers, never tool arguments."
+            "MSPbots Agent Platform lets tenants build and operate AI agents — this server "
+            "exposes that platform's own config API (internal, not a third-party integration). "
+            "Concepts: an agent is an LLM worker with tool permissions and an optional SOP; "
+            "connectors are integrations (e.g. ConnectWise) an agent can call; skills are "
+            "packaged capabilities (SKILL.md) at mspbots/org/agent scope; triggers fire an agent "
+            "automatically, on a schedule or an event. Tool groups: mspbotsagent_get_connectors "
+            "lists the tenant-wide connector inventory, mspbotsagent_get_sop_data_sources the "
+            "connectors one agent uses; mspbotsagent_*_trigger* manage scheduled/event triggers; "
+            "mspbotsagent_*_agent_permissions/evaluation/approval manage an agent's runtime "
+            "policy (allowed tools, self-review, approval gates); mspbotsagent_*_sop_* manage an "
+            "agent's SOP draft (name/source/purpose/data sources/procedure/visibility); "
+            "mspbotsagent_clear_sop_section destructively deletes a module's data; "
+            "mspbotsagent_list_sops browses the tenant's SOP library and "
+            "mspbotsagent_chat_with_sop holds one blocking turn with a SOP's own agent; "
+            "mspbotsagent_*_agent_twilio_tenant_config manage the tenant-editable slice of an "
+            "agent's Twilio phone channel (greeting, language, transfer/idle, tts), not system "
+            "settings (credentials, prompts); mspbotsagent_*_agent_skill manage an agent's "
+            "private skills. Typical flow: check connectors/skills, then policy or SOP, then "
+            "triggers. Credentials come only from request headers, never tool arguments."
         ),
         transport_security=TransportSecuritySettings(enable_dns_rebinding_protection=False),
         stateless_http=True,
@@ -118,12 +114,22 @@ def create_mcp_server(settings: Settings) -> FastMCP:
 
     client_factory: Callable[[], AgentClient | None] = lambda: get_client_from_context(settings)
 
-    from .tools import agents, connectors, skills, sop_author, triggers, twilio_tenant_config, usage
+    from .tools import (
+        agents,
+        connectors,
+        skills,
+        sop_author,
+        sops,
+        triggers,
+        twilio_tenant_config,
+        usage,
+    )
 
     connectors.register(mcp, client_factory)
     triggers.register(mcp, client_factory)
     agents.register(mcp, client_factory)
     sop_author.register(mcp, client_factory)
+    sops.register(mcp, client_factory)
     twilio_tenant_config.register(mcp, client_factory)
     skills.register(mcp, client_factory)
     usage.register(mcp, client_factory)

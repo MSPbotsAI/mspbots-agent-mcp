@@ -42,6 +42,37 @@
 4. **测试里调工具、取返回值的写法是 `result[0][0].text`**（`tests/test_tools.py:287`）。
    不是 `result[0].text`。写错会得到一个看起来像 MCP 版本差异的报错。
 
+## 再加工具时新踩到的三条（SOP 列表 + 同步对话实做后记，@ 3b1a5da）
+
+5. **`tool.description` 是 docstring 的原文，不做 dedent —— 缩进也算进 500 字符。**
+   `tests/test_tools.py:139` 断言的那个长度，包含每个续行前面的 **8 个空格**和空行的换行符。
+   同一段文字，`inspect.cleandoc` 量出来 479，装进工具后是 544（差 65 = 缩进）。
+   **推论**：压 description 时，删掉一整行比抠词省得多（一行白赚 9 字符），
+   而按 `cleandoc` 估长度会稳定低估。豁免表 `:123` 仍然是欠账，本次两个新工具都压进了 500
+   （`list_sops` 493 / `chat_with_sop` 497），没往里加。
+
+6. **`instructions` 的 1500 上限已经贴脸，加一组工具必须先重写旧文案。**
+   `tests/test_tools.py:160` 断言 ≤ 1500，而改之前实测就是 **1496**——只剩 4 字符。
+   本次为塞进 SOP 两个工具，把 twilio / clear_sop_section / 概念段各压了一点，最终 1487。
+   **推论**：下一个人再加工具组，同样要先腾地方，别指望直接追加。
+
+7. **跑 agent 的那类 endpoint 不能吃 `api_client` 的默认重试和默认读超时。**
+   `POST /api/agents/:id/run/wait` 是同步跑完一轮才响应：默认 30s 读超时撑不住
+   （Aegra 自己的兜底是 1 小时），而默认 3 次重试更危险——**重发不是把丢失的响应捞回来，
+   是再跑一遍 agent**。为此 `api_client.py:106` 的 `post()` 加了 `read_timeout` / `retries`
+   两个 keyword-only 覆盖项（其它调用方默认不变），`tools/sops.py:29` 用 `_CHAT_READ_TIMEOUT = 300.0`
+   + `retries=0`，超时错误显式标 `retryable=false` 并提示改用同一会话再问。
+   另一半坑在响应上：这个 endpoint **跑失败也是 HTTP 200，body 里 `success: false`**，
+   永远走不到 `AgentError`，所以 `tools/sops.py:243` 必须显式查 `success`，
+   否则失败会被读成「成功但 agent 没说话」。
+
+## 已知红灯（非本次引入）
+
+`mspbotsagent_get_connectors` 的 description 是 **563** 字符，超过 `tests/test_tools.py:139` 的 500
+上限，且不在豁免表里 —— `test_tools_list_snapshot` 因此常红。该 description 在 3b1a5da
+（2026-09-08，与工具输出去上限同一次提交）变长，本次未改动 `tools/connectors.py`。
+注意这条红灯会让快照测试**在校验到后面的工具之前就中断**，新工具得单独验。
+
 ## 未覆盖
 
 本文件目前只覆盖「加新工具」这条路径。凭据注入、gateway 模式的请求头契约、容器部署，都还没有累积事实条目。

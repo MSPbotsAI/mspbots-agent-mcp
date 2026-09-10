@@ -36,6 +36,10 @@ own configuration:
 - "Give this agent a private skill for X" / "What skills does this agent
   already have?" → `mspbotsagent_create_agent_skill` /
   `mspbotsagent_list_agent_skills`
+- "What SOPs does this tenant have / which are still drafts?" →
+  `mspbotsagent_list_sops`
+- "Ask the onboarding SOP what it would do with this ticket" →
+  `mspbotsagent_chat_with_sop` (one blocking turn with that SOP's own agent)
 
 ## Tools
 
@@ -214,6 +218,46 @@ dataSources `value` 结构（每个 source 只存 `integration`，无 `precondit
 > `PUT /api/agents/:id/skills/:capabilityId/files`, `DELETE /api/agents/:id/skills`
 > (最后一个的请求体是 `{"id": "<capabilityId>"}` —— DELETE 带 body 在 HTTP 里少见，
 > 本服务走 httpx 的底层 `request()` 而非 `delete()` 来发这个请求)。
+
+### SOP library (list + synchronous chat)
+
+一个 **SOP**（标准作业流程）是租户级记录，创建时会为它开一个**专属 agent**；
+`mspbotsagent_chat_with_sop` 对话的就是这个 agent，所以它只收 `sop_id`、不收 `agent_id`。
+这与上面的 [Agent SOP author](#agent-sop-author) 是两件事：那组工具编辑挂在 agent 上的
+**SOP 草稿分节**，这组读的是 **SOP 库**并真正跑一轮对话。
+
+| Tool | 功能 | 参数 |
+|---|---|---|
+| `mspbotsagent_list_sops` | 分页列出租户的 SOP，返回每条的状态与所属 agent | `search`(按名称模糊匹配，不搜正文)、`status`(`draft`/`published`)、`page`(默认 1)、`page_size`(默认 20，上限 100) |
+| `mspbotsagent_chat_with_sop` | 与某 SOP 的 agent 进行**一轮同步对话**：阻塞等待整轮跑完后返回回复 | `sop_id`(必填)、`message`(必填)、`thread_id`(续同一会话)、`new_thread`(另起新会话) |
+
+`mspbotsagent_list_sops` 每行返回
+`id`/`name`/`description`/`status`/`source`/`tags`/`agentId`/`agentLive`/`updatedAt`。
+`agentLive` 为 `false` 表示那个 agent 记录已不存在——SOP 仍可读，但无法对话，
+两个工具的任何参数都救不回来。
+
+`mspbotsagent_chat_with_sop` 返回
+`sopId`/`sopName`/`agentId`/`threadId`/`status`/`reply`，其中 `status` 解释空回复：
+
+| `status` | 含义 |
+|---|---|
+| `completed` | 正常跑完，`reply` 是本轮最后一条对用户可见的 assistant 消息 |
+| `interrupted` | 命中人工审批门而暂停，附 `pausedActions`；需有人在 Agent Platform 里裁决后才会继续 |
+| `no_reply` | 跑完但没产出 assistant 消息 |
+
+`reply` 的取法对齐前端 `components/assistant-ui/aegra/messages.ts` 的 `lastAssistantText`：
+从后往前找 `type=ai`/`role=assistant` 的消息，并跳过 UI 隐藏的内部消息
+（`rubric_grader`、`sop_context`、`sop_suffix`、`compact_summary`、`task_notification`）。
+
+> ⚠️ **这一路调用与其它工具有两点不同，改动时别退回默认值：**
+> 1. 它**关掉了重试**（`retries=0`）。跑 agent 的请求不是幂等的——重发丢失的响应会**再跑一遍 agent**，
+>    而不是把第一次的结果捞回来。
+> 2. 它把读超时放宽到 **300s**（默认 30s 撑不住一轮真实的 agent 运行；Aegra 自己的兜底是 1 小时）。
+>    超时返回的错误里 `retryable=false`，并明确提示「不要重发，改用同一会话再问一次」。
+>
+> Backing endpoints: `GET /api/sops`（分页时返回 `{list, total}`）、`GET /api/sops/:id`（取 `agent_id`）、
+> `POST /api/agents/:id/run/wait`。最后一个**用 HTTP 200 + `{"success": false}` 表示跑失败**，
+> 不会走 4xx/5xx，所以本工具显式检查 `success` 字段，避免把失败读成「成功但没说话」。
 
 ## Quick Start
 
