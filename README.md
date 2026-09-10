@@ -236,6 +236,20 @@ dataSources `value` 结构（每个 source 只存 `integration`，无 `precondit
 `agentLive` 为 `false` 表示那个 agent 记录已不存在——SOP 仍可读，但无法对话，
 两个工具的任何参数都救不回来。
 
+**「用户用自己的话点名一个 SOP」怎么落到 `sop_id`：**
+后端的 `search` 只做 `name ILIKE '%…%'`（`service/sop/db.ts:88`）——不匹配 description / tags / body，
+也没有模糊、同义词或跨语言匹配。**所以搜不到不等于不存在**，多半只是措辞不同（用户说「退款那个」，
+SOP 叫 `Refund Handling`）。把用户原话直接丢进 `search` 拿到 0 行，然后回答「没有这个 SOP」，
+是这条链路上最贵的一种错。正确姿势是**不传 `search`**，读每行的 `name` + `description` 自己挑，
+用 `total` 判断要不要翻页；`search` 只用于你已经确知的名字片段。
+这段指引写在 `search` 参数的描述里（参数描述不计入 500 字符上限），并由
+`tests/test_sops.py` 的 `test_search_param_warns_that_a_miss_is_not_an_absence` 守住。
+
+**只有 `agent_id` 时**：`list_sops` 每行都带 `agentId`，列出来按它匹配即可拿到 `sop_id`；
+`mspbotsagent_get_usage_overview` 的行里也同时有 `sopId` 和 `agentId`。不要去解析 agent 名字——
+虽然 SOP agent 建出来叫 `${sop.name} #${sop.id}` 且改名会同步，但 `PUT /api/agents/:id` 允许
+用户直接改 name，改完即脱钩，且普通 agent 也能起同名。
+
 `mspbotsagent_chat_with_sop` 返回
 `sopId`/`sopName`/`agentId`/`threadId`/`status`/`reply`，其中 `status` 解释空回复：
 

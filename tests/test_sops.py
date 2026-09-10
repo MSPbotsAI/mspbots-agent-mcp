@@ -246,3 +246,28 @@ async def test_no_credentials_short_circuits_both_tools():
     ):
         result = await mcp.call_tool(tool, args)
         assert json.loads(result[0][0].text)["error"]["code"] == "not_configured"
+
+
+@pytest.mark.asyncio
+async def test_search_param_warns_that_a_miss_is_not_an_absence():
+    # `search` is a name-only ILIKE substring on the backend (service/sop/db.ts:88):
+    # no description, no tags, no body, no fuzzy or cross-language matching. The
+    # failure that costs a real answer is a model taking the user's own wording
+    # ("the refund one"), searching a SOP actually named "Refund Handling",
+    # getting zero rows, and reporting that no such SOP exists. The param text is
+    # the only place that trap is visible at call time, so guard it here rather
+    # than leaving it to survive on good intentions.
+    from mspbots_agent_mcp.config import Settings
+    from mspbots_agent_mcp.server import create_mcp_server
+
+    tools = {t.name: t for t in await create_mcp_server(Settings()).list_tools()}
+
+    search = tools["mspbotsagent_list_sops"].inputSchema["properties"]["search"]["description"]
+    assert "not evidence" in search.lower(), "must say an empty result is not an absence"
+    assert "description" in search, "must say the description is not matched"
+    assert "leave this out" in search, "must give the list-and-pick alternative"
+
+    # The reverse lookup: agent_id -> sop_id exists (every list row carries agentId),
+    # but only this text tells a model that, so it must not quietly disappear.
+    sop_id = tools["mspbotsagent_chat_with_sop"].inputSchema["properties"]["sop_id"]["description"]
+    assert "agent_id" in sop_id and "agentId" in sop_id

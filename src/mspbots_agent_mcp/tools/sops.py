@@ -118,7 +118,14 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
             str | None,
             Field(
                 description=(
-                    "Case-insensitive substring of the SOP name. The body is not searched."
+                    "Case-insensitive SUBSTRING of the SOP name. Nothing else is matched: "
+                    "not the description, not the tags, not the body, and there is no "
+                    "fuzzy, synonym or cross-language matching. So an empty result is NOT "
+                    "evidence that no such SOP exists -- it usually means the wording "
+                    "differs. To find the SOP a user described in their own words, leave "
+                    "this out, read each row's name AND description, and pick the match "
+                    "yourself; `total` tells you whether more pages remain. Use search "
+                    "only for a literal fragment of the name you already know."
                 )
             ),
         ] = None,
@@ -170,7 +177,14 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
     @mcp.tool()
     async def mspbotsagent_chat_with_sop(
         sop_id: Annotated[
-            int, Field(description="SOP to talk to; ids come from mspbotsagent_list_sops.")
+            int,
+            Field(
+                description=(
+                    "SOP to talk to. Ids come from mspbotsagent_list_sops -- including "
+                    "when all you have is an agent_id: list the SOPs and match on the "
+                    "`agentId` each row carries. Never guess an id."
+                )
+            ),
         ],
         message: Annotated[str, Field(description="What to say to the SOP's agent this turn.")],
         thread_id: Annotated[
