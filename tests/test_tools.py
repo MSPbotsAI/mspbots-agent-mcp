@@ -66,6 +66,7 @@ EXPECTED_TOOLS = {
         {"agent_id", "capability_id"},
         {"destructiveHint"},
     ),
+    "mspbotsagent_set_agent_skill_enabled": ({"agent_id", "ref"}, {"idempotentHint"}),
 }
 
 
