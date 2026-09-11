@@ -33,11 +33,6 @@ own configuration:
 - "Write up this agent's SOP so it has a documented, repeatable procedure" →
   `mspbotsagent_set_sop_purpose` / `mspbotsagent_set_sop_procedure` / the
   other `mspbotsagent_set_sop_*` tools
-- "Give this agent a private skill for X" / "What skills does this agent
-  already have?" → `mspbotsagent_create_agent_skill` /
-  `mspbotsagent_list_agent_skills`
-- "Turn off the renewal-email skill for this agent" (without deleting it) →
-  `mspbotsagent_set_agent_skill_enabled`
 - "What SOPs does this tenant have / which are still drafts?" →
   `mspbotsagent_list_sops`
 - "Ask the onboarding SOP what it would do with this ticket" →
@@ -217,6 +212,13 @@ Summary test: usable = `found === true` and `connection ∈ {agent, org}` (with
 > Backing endpoints: `GET|PUT /api/agents/:id/sop-author/{name,source,purpose,data-sources-list,procedure}`.
 
 ### Agent skills
+
+> 🚫 **Currently not exposed.** These tools are commented out in
+> `create_mcp_server()` (`src/mspbots_agent_mcp/server.py`), so they do not appear in
+> `tools/list` and cannot be called by external clients. The implementation stays in
+> `src/mspbots_agent_mcp/tools/skills.py`; re-enable by uncommenting the `skills`
+> import and `skills.register(...)` call there (and the matching entries in
+> `tests/test_tools.py`). The rest of this section describes them as implemented.
 
 The skills available to an agent come in three kinds: `mspbots` (built into the
 platform), `org` (shared across the organization), and `agent` (private to that agent).

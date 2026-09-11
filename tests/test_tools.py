@@ -55,18 +55,19 @@ EXPECTED_TOOLS = {
     # Twilio tenant config
     "mspbotsagent_get_agent_twilio_tenant_config": ({"agent_id"}, {"readOnlyHint"}),
     "mspbotsagent_set_agent_twilio_tenant_config": ({"agent_id"}, {"idempotentHint"}),
-    # skills
-    "mspbotsagent_list_agent_skills": ({"agent_id"}, {"readOnlyHint"}),
-    "mspbotsagent_create_agent_skill": ({"agent_id", "name", "files"}, set()),
-    "mspbotsagent_update_agent_skill_files": (
-        {"agent_id", "capability_id", "files"},
-        {"idempotentHint"},
-    ),
-    "mspbotsagent_delete_agent_skill": (
-        {"agent_id", "capability_id"},
-        {"destructiveHint"},
-    ),
-    "mspbotsagent_set_agent_skill_enabled": ({"agent_id", "ref"}, {"idempotentHint"}),
+    # skills — temporarily not registered in server.py, so not externally visible.
+    # Restore these entries together with the skills.register() call.
+    # "mspbotsagent_list_agent_skills": ({"agent_id"}, {"readOnlyHint"}),
+    # "mspbotsagent_create_agent_skill": ({"agent_id", "name", "files"}, set()),
+    # "mspbotsagent_update_agent_skill_files": (
+    #     {"agent_id", "capability_id", "files"},
+    #     {"idempotentHint"},
+    # ),
+    # "mspbotsagent_delete_agent_skill": (
+    #     {"agent_id", "capability_id"},
+    #     {"destructiveHint"},
+    # ),
+    # "mspbotsagent_set_agent_skill_enabled": ({"agent_id", "ref"}, {"idempotentHint"}),
 }
 
 

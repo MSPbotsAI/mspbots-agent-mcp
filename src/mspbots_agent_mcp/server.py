@@ -90,9 +90,8 @@ def create_mcp_server(settings: Settings) -> FastMCP:
             "MSPbots Agent Platform lets tenants build and operate AI agents — this server "
             "exposes that platform's own config API (internal, not a third-party integration). "
             "Concepts: an agent is an LLM worker with tool permissions and an optional SOP; "
-            "connectors are integrations (e.g. ConnectWise) an agent can call; skills are "
-            "packaged capabilities (SKILL.md) at mspbots/org/agent scope; triggers fire an agent "
-            "automatically, on a schedule or an event. Tool groups: mspbotsagent_get_connectors "
+            "connectors are integrations (e.g. ConnectWise) an agent can call; triggers fire an "
+            "agent automatically, on a schedule or an event. Tool groups: mspbotsagent_get_connectors "
             "lists the tenant-wide connector inventory, mspbotsagent_get_sop_data_sources the "
             "connectors one agent uses; mspbotsagent_*_trigger* manage scheduled/event triggers; "
             "mspbotsagent_*_agent_permissions/evaluation/approval manage an agent's runtime "
@@ -103,9 +102,12 @@ def create_mcp_server(settings: Settings) -> FastMCP:
             "mspbotsagent_chat_with_sop holds one blocking turn with a SOP's own agent; "
             "mspbotsagent_*_agent_twilio_tenant_config manage the tenant-editable slice of an "
             "agent's Twilio phone channel (greeting, language, transfer/idle, tts), not system "
-            "settings (credentials, prompts); mspbotsagent_*_agent_skill manage an agent's "
-            "private skills. Typical flow: check connectors/skills, then policy or SOP, then "
-            "triggers. Credentials come only from request headers, never tool arguments."
+            "settings (credentials, prompts). Typical flow: check connectors, then policy or SOP, "
+            "then triggers. Credentials come only from request headers, never tool arguments."
+            # NOTE: the agent-skill tool group (mspbotsagent_*_agent_skill) is temporarily
+            # disabled — see the commented-out skills.register() call below. Restore the
+            # sentence "mspbotsagent_*_agent_skill manage an agent's private skills." here
+            # when re-enabling.
         ),
         transport_security=TransportSecuritySettings(enable_dns_rebinding_protection=False),
         stateless_http=True,
@@ -117,7 +119,7 @@ def create_mcp_server(settings: Settings) -> FastMCP:
     from .tools import (
         agents,
         connectors,
-        skills,
+        # skills,  # temporarily not exposed externally
         sop_author,
         sops,
         triggers,
@@ -131,7 +133,10 @@ def create_mcp_server(settings: Settings) -> FastMCP:
     sop_author.register(mcp, client_factory)
     sops.register(mcp, client_factory)
     twilio_tenant_config.register(mcp, client_factory)
-    skills.register(mcp, client_factory)
+    # Agent-skill tools (mspbotsagent_list/create/update/delete/set_agent_skill*) are
+    # temporarily hidden from external clients. The implementation stays in
+    # tools/skills.py; uncomment this line and the `skills` import above to re-expose it.
+    # skills.register(mcp, client_factory)
     usage.register(mcp, client_factory)
 
     return mcp
