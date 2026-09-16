@@ -49,11 +49,28 @@ tool argument.
 | Tool | What it does | Parameters |
 |---|---|---|
 | `mspbotsagent_get_connectors` | List every connector on the current tenant, returning each one's name, whether it is installed, and its connection status | none |
+| `mspbotsagent_list_connector_tools` | List one connector's tools **with their per-agent on/off switch state** (`enabled`) | `agent_id`, `capability_id` |
+| `mspbotsagent_set_connector_tools` | Switch a connector's tools on/off for one agent (single or batch) | `agent_id`, `capability_id`, `tools[]`, `enabled` |
 
 `mspbotsagent_get_connectors` is **tenant-scoped**: it takes no `agent_id` and
 returns the same inventory regardless of which agent is being configured. For
 the connectors a *specific* agent is declared to use, see
 [`mspbotsagent_get_sop_data_sources`](#agent-sop-author) instead.
+
+The two switch tools operate on **individual tools within a connector**. A
+connector's tools all default to **on**; the backend records only the
+exceptions (an opt-out list per agent + connector), so a tool with no override
+reads `enabled: true`. `capability_id` is the connector `id` returned by
+`mspbotsagent_get_connectors` (or by a `mspbotsagent_get_sop_data_sources`
+entry). `mspbotsagent_list_connector_tools` returns the same tool names as
+`mspbotsagent_get_sop_data_sources`, adding each tool's `enabled` flag.
+`mspbotsagent_set_connector_tools` affects only the tool names you pass;
+`enabled: false` switches them off (the agent can no longer see or call them),
+`enabled: true` switches them back on. For "all on / all off", read the current
+names first and pass the whole batch in **one** call — each call **restarts the
+agent (~30s)** to take effect (`restartRequired` is always `true`;
+`pending: true` means the switch was saved but not yet synced to the agent's
+config).
 
 `mspbotsagent_get_connectors` returns one row per connector:
 

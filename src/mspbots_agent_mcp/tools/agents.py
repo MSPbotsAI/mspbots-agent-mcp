@@ -204,9 +204,9 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
         THE KEYS ARE THESE SEVEN AND NOTHING ELSE
           Connector (MCP) tool ids are NOT valid keys here and are rejected —
           not "qbo.createInvoice", not "ClickUp", not "Microsoft Graph". This
-          gate covers built-ins only. A connector tool the agent uses is not
-          configured through this tool at all, so there is nothing to look up
-          and nothing to wait for.
+          gate covers built-ins only. A connector tool has no allow/ask/deny
+          here: its one control is an on/off switch, set through
+          mspbotsagent_set_connector_tools, not this tool.
           execute          Run shell commands / code
           read_file        Read files in the workspace
           write_file       Create or overwrite files

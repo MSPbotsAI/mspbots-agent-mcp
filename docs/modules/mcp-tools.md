@@ -66,12 +66,35 @@
    永远走不到 `AgentError`，所以 `tools/sops.py:243` 必须显式查 `success`，
    否则失败会被读成「成功但 agent 没说话」。
 
-## 已知红灯（非本次引入）
+## 再加工具时的更正 + 新事实（connector 工具开关实做后记，@ HEAD）
 
-`mspbotsagent_get_connectors` 的 description 是 **563** 字符，超过 `tests/test_tools.py:139` 的 500
-上限，且不在豁免表里 —— `test_tools_list_snapshot` 因此常红。该 description 在 3b1a5da
-（2026-09-08，与工具输出去上限同一次提交）变长，本次未改动 `tools/connectors.py`。
-注意这条红灯会让快照测试**在校验到后面的工具之前就中断**，新工具得单独验。
+8. **第 5 条已过期：当前 `tool.description` 会 dedent，长度按 `cleandoc` 后计。**
+   实测（本次同一批 docstring）原文长度 vs `list_tools()` 里的 `description`：
+   `upsert_agent_permissions` 3596→3156、`get_connectors` 563→499、`set_sop_procedure` 562→498。
+   **推论反转**：现在按原文（带 8 空格缩进）估长度是**稳定高估**，正确口径是把 docstring 写成
+   flush-left 再数，或直接读 `list_tools()`。本次两个新工具按此量到
+   `list_connector_tools` 488 / `set_connector_tools` 499，均 < 500，未进豁免表。
+
+9. **第 8 条顺带解除了旧「红灯」。** `get_connectors` 的 description 现在是 **499**（dedent 后），
+   不再超 500，`test_tools_list_snapshot` 现在全绿（本次实测 49 passed）。旧记录说的 563 是原文长度、
+   非 `description` 长度，属同一个 dedent 误解。
+
+10. **`agents/:id/connectors/:cid/tools` 的 PUT 和 run/wait 一样：业务失败是 HTTP 200 + `success:false`。**
+    「agent 不存在」「tools 为空」都走这条，永远到不了 `AgentError`。`tools/connectors.py` 的
+    `mspbotsagent_set_connector_tools` 因此显式查 `result.get("success") is False`（同 `tools/sops.py`）。
+    成功时取内层 `data`（`{agentId,capabilityId,names,enabled,restartRequired,pending}`）。
+
+11. **`capabilityId` 是全平台同一个 UUID 命名空间——`:cid` 不需要新工具去拿。**
+    2026-09-16 实测（INT 租户 `uc1dnhtl1io4ohbz7t0d3`）：`get_connectors` 用的
+    `/api/capabilities/connectors/catalog` 里每行的 `id`、`/api/agents/:id/connectors` 里的 `id`、
+    以及 `sop-author/data-sources-list` 条目里的 `id`，同一连接器**三处 UUID 完全相同**
+    （如 halopsa = `a79030ad-…4bddd`）。所以设计文档里的「接口 1」`GET /api/agents/:id/connectors`
+    **没有包成工具**：它返回的是全 catalog（实测 98 个）+ `selected` 标记，拿 `:cid` 用现有
+    `get_connectors`（租户级）或 `get_sop_data_sources`（agent 级、每条带 `id`）即可。只包了「接口 2」
+    （列工具+开关态）和「接口 3」（改开关）。
+
+12. **`instructions` 预算：本次加两句后实测 1453（≤1500），余 47 字符。** 第 6 条记的 1487 已过期
+    （skills 工具组隐藏后腾出过空间）。下一个人加工具组仍要先量再加。
 
 ## 未覆盖
 
