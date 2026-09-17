@@ -49,8 +49,10 @@ EXPECTED_TOOLS = {
     "mspbotsagent_set_sop_purpose": ({"agent_id", "value"}, {"idempotentHint"}),
     "mspbotsagent_get_sop_data_sources": ({"agent_id"}, {"readOnlyHint"}),
     "mspbotsagent_set_sop_data_sources": ({"agent_id", "value"}, {"idempotentHint"}),
-    "mspbotsagent_get_sop_procedure": ({"agent_id"}, {"readOnlyHint"}),
-    "mspbotsagent_set_sop_procedure": ({"agent_id", "value"}, {"idempotentHint"}),
+    # procedure — temporarily not registered in sop_author.py, so not externally
+    # visible. Restore these entries together with the two @mcp.tool decorators.
+    # "mspbotsagent_get_sop_procedure": ({"agent_id"}, {"readOnlyHint"}),
+    # "mspbotsagent_set_sop_procedure": ({"agent_id", "value"}, {"idempotentHint"}),
     "mspbotsagent_get_sop_section_visibility": ({"agent_id"}, {"readOnlyHint"}),
     "mspbotsagent_set_sop_section_visibility": ({"agent_id"}, {"idempotentHint"}),
     "mspbotsagent_clear_sop_section": (

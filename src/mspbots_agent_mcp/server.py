@@ -98,7 +98,7 @@ def create_mcp_server(settings: Settings) -> FastMCP:
             "scheduled/event triggers; "
             "mspbotsagent_*_agent_permissions/evaluation/approval manage an agent's runtime "
             "policy (allowed tools, self-review, approval gates); mspbotsagent_*_sop_* manage an "
-            "agent's SOP draft (name/source/purpose/data sources/procedure/visibility); "
+            "agent's SOP draft (name/source/purpose/data sources/visibility); "
             "mspbotsagent_clear_sop_section destructively deletes a module's data; "
             "mspbotsagent_list_sops browses the tenant's SOP library and "
             "mspbotsagent_chat_with_sop holds one blocking turn with a SOP's own agent; "

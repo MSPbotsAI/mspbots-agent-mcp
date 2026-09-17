@@ -31,8 +31,7 @@ own configuration:
 - "Require a human to sign off before this agent issues a refund" →
   `mspbotsagent_upsert_agent_approval`
 - "Write up this agent's SOP so it has a documented, repeatable procedure" →
-  `mspbotsagent_set_sop_purpose` / `mspbotsagent_set_sop_procedure` / the
-  other `mspbotsagent_set_sop_*` tools
+  `mspbotsagent_set_sop_purpose` / the other `mspbotsagent_set_sop_*` tools
 - "What SOPs does this tenant have / which are still drafts?" →
   `mspbotsagent_list_sops`
 - "Ask the onboarding SOP what it would do with this ticket" →
@@ -157,6 +156,14 @@ primary key is `agentId`.
 > effect at runtime, deciding what the agent "can actually do". The two are
 > complementary but distinct kinds of configuration.
 
+> 🚫 **The two `*_sop_procedure` tools are currently not exposed.** Their
+> `@mcp.tool` decorators are commented out in
+> `src/mspbots_agent_mcp/tools/sop_author.py`, so they no longer appear in
+> `tools/list` and cannot be called by external clients. The implementations stay in
+> that file; re-enable by uncommenting the two decorators (and the matching entries in
+> `tests/test_tools.py`). The rows below describe them as implemented; the other four
+> SOP fields are unaffected.
+
 | Tool | What it does | Parameters |
 |---|---|---|
 | `mspbotsagent_get_sop_name` | Read the SOP name | `agent_id` (required) |
@@ -167,8 +174,8 @@ primary key is `agentId`.
 | `mspbotsagent_set_sop_purpose` | Set the purpose (markdown) | `agent_id` (required), `value` (required) |
 | `mspbotsagent_get_sop_data_sources` | Read the dataSources list (structured object) | `agent_id` (required) |
 | `mspbotsagent_set_sop_data_sources` | Set the dataSources list (structured object) | `agent_id` (required), `value` (required, object) |
-| `mspbotsagent_get_sop_procedure` | Read the procedure (markdown) | `agent_id` (required) |
-| `mspbotsagent_set_sop_procedure` | Set the procedure (markdown) | `agent_id` (required), `value` (required) |
+| `mspbotsagent_get_sop_procedure` 🚫 | Read the procedure (markdown) — **currently not exposed** | `agent_id` (required) |
+| `mspbotsagent_set_sop_procedure` 🚫 | Set the procedure (markdown) — **currently not exposed** | `agent_id` (required), `value` (required) |
 
 The dataSources `value` shape (each source stores only `integration`, no
 `preconditions`):

@@ -268,8 +268,14 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
             return e.to_envelope()
 
     # ----- procedure ------------------------------------------------------
+    # NOTE: the two procedure tools (mspbotsagent_get_sop_procedure /
+    # mspbotsagent_set_sop_procedure) are temporarily hidden from external
+    # clients: their @mcp.tool decorators below are commented out, so they no
+    # longer appear in tools/list and cannot be called. The implementations are
+    # left untouched; re-expose by uncommenting the two decorators (and the
+    # matching entries in tests/test_tools.py).
 
-    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
+    # @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     async def mspbotsagent_get_sop_procedure(
         agent_id: Annotated[str, Field(description="Agent to read.")],
     ) -> str:
@@ -289,7 +295,7 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
         except AgentError as e:
             return e.to_envelope()
 
-    @mcp.tool(annotations=ToolAnnotations(idempotentHint=True))
+    # @mcp.tool(annotations=ToolAnnotations(idempotentHint=True))  # temporarily not exposed
     async def mspbotsagent_set_sop_procedure(
         agent_id: Annotated[str, Field(description="Agent to update.")],
         value: Annotated[str, Field(description="Procedure markdown.")],
