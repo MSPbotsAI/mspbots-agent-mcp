@@ -100,8 +100,7 @@ def create_mcp_server(settings: Settings) -> FastMCP:
             "policy (allowed tools, self-review, approval gates); mspbotsagent_*_sop_* manage an "
             "agent's SOP draft (name/source/purpose/data sources/visibility); "
             "mspbotsagent_clear_sop_section destructively deletes a module's data; "
-            "mspbotsagent_list_sops browses the tenant's SOP library and "
-            "mspbotsagent_chat_with_sop holds one blocking turn with a SOP's own agent; "
+            "mspbotsagent_list_sops browses the tenant's SOP library; "
             "mspbotsagent_*_agent_twilio_tenant_config manage the tenant-editable slice of an "
             "agent's Twilio phone channel (greeting, language, transfer/idle, tts), not system "
             "settings (credentials, prompts). Typical flow: check connectors, then policy or SOP, "
@@ -110,6 +109,13 @@ def create_mcp_server(settings: Settings) -> FastMCP:
             # disabled — see the commented-out skills.register() call below. Restore the
             # sentence "mspbotsagent_*_agent_skill manage an agent's private skills." here
             # when re-enabling.
+            # NOTE: mspbotsagent_chat_with_sop is temporarily hidden (see
+            # tools/sops.py) — restore the sentence "mspbotsagent_chat_with_sop
+            # holds one blocking turn with a SOP's own agent;" after
+            # "...browses the tenant's SOP library" above when re-enabling.
+            # mspbotsagent_run_trigger is also temporarily hidden (see
+            # tools/triggers.py); the wildcard "mspbotsagent_*_trigger*" mention
+            # needs no change either way.
         ),
         transport_security=TransportSecuritySettings(enable_dns_rebinding_protection=False),
         stateless_http=True,

@@ -141,9 +141,8 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
         Use to find a SOP by name, or to answer "what SOPs do we have",
         "which are still drafts".
 
-        Each row's `agentId` is the agent that SOP owns — what
-        mspbotsagent_chat_with_sop talks to. `agentLive` false means that
-        agent is gone: the SOP reads fine but cannot be talked to.
+        Each row's `agentId` is the agent that SOP owns. `agentLive` false
+        means that agent is gone.
 
         Not the SOP draft sections on an agent — those are
         mspbotsagent_get_sop_purpose and its siblings.
@@ -174,7 +173,14 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
             }
         )
 
-    @mcp.tool()
+    # NOTE: mspbotsagent_chat_with_sop is temporarily hidden from external
+    # clients: its @mcp.tool decorator below is commented out, so it no
+    # longer appears in tools/list and cannot be called. The implementation
+    # is left untouched; re-expose by uncommenting the decorator (and the
+    # matching entry in tests/test_tools.py, and the skipped tests in
+    # tests/test_sops.py).
+
+    # @mcp.tool()
     async def mspbotsagent_chat_with_sop(
         sop_id: Annotated[
             int,
