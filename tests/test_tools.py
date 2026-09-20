@@ -32,7 +32,9 @@ EXPECTED_TOOLS = {
     "mspbotsagent_upsert_trigger": (set(), set()),
     "mspbotsagent_delete_trigger": ({"task_id"}, {"destructiveHint"}),
     "mspbotsagent_get_trigger_catalog": (set(), {"readOnlyHint"}),
-    "mspbotsagent_run_trigger": ({"task_id"}, set()),
+    # run_trigger — temporarily not registered in triggers.py, so not externally
+    # visible. Restore this entry together with the @mcp.tool decorator.
+    # "mspbotsagent_run_trigger": ({"task_id"}, set()),
     # agent policy: permissions / evaluation / approval
     "mspbotsagent_get_agent_permissions": ({"agent_id"}, {"readOnlyHint"}),
     "mspbotsagent_upsert_agent_permissions": ({"agent_id"}, {"idempotentHint"}),
@@ -61,7 +63,10 @@ EXPECTED_TOOLS = {
     ),
     # SOP library (list + synchronous chat)
     "mspbotsagent_list_sops": (set(), {"readOnlyHint"}),
-    "mspbotsagent_chat_with_sop": ({"sop_id", "message"}, set()),
+    # chat_with_sop — temporarily not registered in sops.py, so not externally
+    # visible. Restore this entry together with the @mcp.tool decorator (and
+    # the skipped tests in tests/test_sops.py).
+    # "mspbotsagent_chat_with_sop": ({"sop_id", "message"}, set()),
     # Twilio tenant config
     "mspbotsagent_get_agent_twilio_tenant_config": ({"agent_id"}, {"readOnlyHint"}),
     "mspbotsagent_set_agent_twilio_tenant_config": ({"agent_id"}, {"idempotentHint"}),

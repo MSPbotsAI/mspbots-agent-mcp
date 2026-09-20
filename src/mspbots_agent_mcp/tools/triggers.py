@@ -198,7 +198,13 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
         except AgentError as e:
             return e.to_envelope()
 
-    @mcp.tool()
+    # NOTE: mspbotsagent_run_trigger is temporarily hidden from external
+    # clients: its @mcp.tool decorator below is commented out, so it no
+    # longer appears in tools/list and cannot be called. The implementation
+    # is left untouched; re-expose by uncommenting the decorator (and the
+    # matching entry in tests/test_tools.py).
+
+    # @mcp.tool()
     async def mspbotsagent_run_trigger(
         task_id: Annotated[str, Field(description="Trigger to run now.")],
     ) -> str:

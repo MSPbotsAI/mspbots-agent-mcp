@@ -34,8 +34,6 @@ own configuration:
   `mspbotsagent_set_sop_purpose` / the other `mspbotsagent_set_sop_*` tools
 - "What SOPs does this tenant have / which are still drafts?" →
   `mspbotsagent_list_sops`
-- "Ask the onboarding SOP what it would do with this ticket" →
-  `mspbotsagent_chat_with_sop` (one blocking turn with that SOP's own agent)
 
 ## Tools
 
@@ -101,8 +99,15 @@ belongs to one `agentId`.
 | `mspbotsagent_upsert_trigger` | Create or modify a trigger (with `task_id` = modify, without = create) | `agent_id`, `task_id`, `name`, `prompt`, `type` (`recurring`/`event`), `enabled`, `expires_in_days`; recurring: `schedule` (cron, 1h minimum), `timezone`, `run`; event: `trigger_integration`, `trigger_events` |
 | `mspbotsagent_delete_trigger` | Delete a trigger (cannot be undone) | `task_id` (required) |
 | `mspbotsagent_get_trigger_catalog` | List the integration + events combinations that are valid for event triggers | none |
-| `mspbotsagent_run_trigger` | Run one trigger manually, right now (for testing or a catch-up run) | `task_id` (required) |
+| `mspbotsagent_run_trigger` 🚫 | Run one trigger manually, right now (for testing or a catch-up run) — **currently not exposed** | `task_id` (required) |
 
+> 🚫 **`mspbotsagent_run_trigger` is currently not exposed.** Its `@mcp.tool`
+> decorator is commented out in `src/mspbots_agent_mcp/tools/triggers.py`, so it
+> no longer appears in `tools/list` and cannot be called by external clients. The
+> implementation stays in that file; re-enable by uncommenting the decorator
+> (and the matching entry in `tests/test_tools.py`). The row above describes it
+> as implemented; the other four trigger tools are unaffected.
+>
 > Creating via `upsert` requires `agent_id`/`name`/`prompt`/`type`; `recurring` also
 > requires `schedule` (cron, 1h minimum interval), and `event` requires
 > `trigger_integration` + `trigger_events`, whose combination must appear in the
@@ -289,6 +294,15 @@ exactly the switch `mspbotsagent_set_agent_skill_enabled` writes, and each entry
 
 ### SOP library (list + synchronous chat)
 
+> 🚫 **`mspbotsagent_chat_with_sop` is currently not exposed.** Its `@mcp.tool`
+> decorator is commented out in `src/mspbots_agent_mcp/tools/sops.py`, so it no
+> longer appears in `tools/list` and cannot be called by external clients (its
+> dedicated tests in `tests/test_sops.py` are `@pytest.mark.skip`-ed to match).
+> The implementation stays in that file; re-enable by uncommenting the
+> decorator (and the matching entry in `tests/test_tools.py`, and the skipped
+> tests). Everything below describes it as implemented; `mspbotsagent_list_sops`
+> is unaffected and still exposed.
+
 A **SOP** (standard operating procedure) is a tenant-level record, and creating one
 also opens a **dedicated agent** for it. That agent is what
 `mspbotsagent_chat_with_sop` talks to, which is why it takes only `sop_id`, never
@@ -299,7 +313,7 @@ those tools edit the **SOP draft sections** attached to an agent, while these re
 | Tool | What it does | Parameters |
 |---|---|---|
 | `mspbotsagent_list_sops` | List the tenant's SOPs with pagination, returning each one's status and owning agent | `search` (fuzzy match on name only, does not search the body), `status` (`draft`/`published`), `page` (default 1), `page_size` (default 20, max 100) |
-| `mspbotsagent_chat_with_sop` | Hold **one synchronous turn** of conversation with a SOP's agent: blocks until the whole turn finishes, then returns the reply | `sop_id` (required), `message` (required), `thread_id` (continue the same conversation), `new_thread` (start a new one) |
+| `mspbotsagent_chat_with_sop` 🚫 | Hold **one synchronous turn** of conversation with a SOP's agent: blocks until the whole turn finishes, then returns the reply — **currently not exposed** | `sop_id` (required), `message` (required), `thread_id` (continue the same conversation), `new_thread` (start a new one) |
 
 `mspbotsagent_list_sops` returns per row
 `id`/`name`/`description`/`status`/`source`/`tags`/`agentId`/`agentLive`/`updatedAt`.
