@@ -63,11 +63,12 @@ entry). `mspbotsagent_list_connector_tools` returns the same tool names as
 `mspbotsagent_get_sop_data_sources`, adding each tool's `enabled` flag.
 `mspbotsagent_set_connector_tools` affects only the tool names you pass;
 `enabled: false` switches them off (the agent can no longer see or call them),
-`enabled: true` switches them back on. For "all on / all off", read the current
-names first and pass the whole batch in **one** call — each call **restarts the
-agent (~30s)** to take effect (`restartRequired` is always `true`;
-`pending: true` means the switch was saved but not yet synced to the agent's
-config).
+`enabled: true` switches them back on. A change takes effect on the agent's
+**next chat** — there is no ~30s restart to wait out and no need to start a new
+thread. For "all on / all off", read the current names first and pass the whole
+batch in **one** call (`restartRequired` in the response is always `true`, but
+the agent picks the change up on its next chat regardless; `pending: true`
+means the switch was saved but not yet synced to the agent's config).
 
 `mspbotsagent_get_connectors` returns one row per connector:
 

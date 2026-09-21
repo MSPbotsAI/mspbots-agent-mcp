@@ -138,12 +138,12 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
     ) -> str:
         """Turn a connector's tools on or off for one agent (single or batch).
 
-        Every tool is on by default; this records only the exceptions. enabled=false
-        switches the listed tools off — the agent can't then see or call them;
-        enabled=true switches them back on. For "all on/off" pass the whole batch in
-        ONE call (names from mspbotsagent_list_connector_tools): each call RESTARTS
-        the agent (~30s), so one at a time is one restart each. Only the names you
-        pass change. pending=true = saved but not yet synced.
+        Every tool is on by default; only exceptions are recorded. enabled=false
+        switches the listed tools off — the agent can't see or call them;
+        enabled=true switches them back on. Only the names you pass change, and take
+        effect on the agent's NEXT chat — no restart wait, no new thread needed.
+        For "all on/off" pass the whole batch in ONE call (names from
+        mspbotsagent_list_connector_tools). pending=true = saved but not yet synced.
         """
         client = client_factory()
         if client is None:
