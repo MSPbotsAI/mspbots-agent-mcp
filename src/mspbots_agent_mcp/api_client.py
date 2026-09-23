@@ -71,10 +71,12 @@ class AgentClient:
     every call made through this instance, rather than opening a new
     connection per request.
 
-    The tenant is embedded in the JWT bearer token. We additionally forward
-    the tenant id as an `X_Tenant_ID` header to stay consistent with the
-    platform convention (the sibling ticketqa-mcp service relies on it for
-    routing).
+    The credential is the platform-issued API key, passed through verbatim
+    as `X-API-Key` (PRD-19165 — the JWT it replaced expired on its own, so
+    it could not survive being stored as a tenant credential). Since the key
+    is opaque, the tenant id always travels separately as an `X_Tenant_ID`
+    header, per the platform convention (the sibling ticketqa-mcp service
+    relies on it for routing).
     """
 
     def __init__(self, access_token: str, host: str, tenant_id: str):
@@ -84,7 +86,7 @@ class AgentClient:
 
     def _headers(self) -> dict[str, str]:
         return {
-            "Authorization": f"Bearer {self._token}",
+            "X-API-Key": self._token,
             "X_Tenant_ID": self._tenant_id,
             "Content-Type": "application/json",
             "Accept": "application/json",
