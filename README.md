@@ -38,7 +38,7 @@ own configuration:
 ## Tools
 
 Every tool takes its credentials from the request headers
-(`X-MSP-Token` / `X-MSP-Tenant-Id` / `X-MSP-Host`) — no token is ever passed as a
+(`X-API-Key` / `X-MSP-Tenant-Id` / `X-MSP-Host`) — no token is ever passed as a
 tool argument.
 
 ### Connectors
@@ -406,9 +406,20 @@ MCP caller — kept consistent with `ticketqa-mcp`):
 
 | Header | Type | Required | Description | Example |
 |---|---|---|---|---|
-| `X-MSP-Token` | string | Yes | An access credential already issued by the Agent Platform (JWT bearer token). This service forwards it verbatim as the downstream request's `Authorization: Bearer <token>`. | `X-MSP-Token: <jwt-bearer-token>` |
+| `X-API-Key` | string | Yes | An access credential already issued by the Agent Platform (JWT bearer token). This service forwards it verbatim as the downstream request's `Authorization: Bearer <token>`. | `X-API-Key: <jwt-bearer-token>` |
 | `X-MSP-Tenant-Id` | string | Yes | Tenant identifier. Renamed to the `X_Tenant_ID` header when forwarded to the downstream API (the tenant is also embedded in the JWT). | `X-MSP-Tenant-Id: <tenant-id>` |
 | `X-MSP-Host` | string | Yes | The host the Agent API lives on. | `X-MSP-Host: https://agent.mspbots.ai` |
+
+> ⏳ **Transition (from 2026-09-23)**: `X-API-Key` replaces the former
+> `X-MSP-Token`. Credentials saved before the rename still sit in the registry
+> under the old name and the gateway injects them verbatim, so the middleware
+> falls back to reading `X-MSP-Token` when `X-API-Key` is absent. When both are
+> present `X-API-Key` wins. Once every tenant credential has been re-saved under
+> the new name, delete the fallback in `server.py` and
+> `tests/test_middleware.py::test_legacy_token_header_is_still_accepted`.
+>
+> `X-MSP-Tenant-Id` is **not** affected by this rename — still required, still
+> forwarded downstream.
 
 Missing any of the three headers returns `401 Unauthorized`.
 
@@ -427,7 +438,7 @@ POST http://localhost:8080/mcp
 
 Connect your MCP client with:
 - Transport: `http` (Streamable HTTP / SSE)
-- Headers: `X-MSP-Token`, `X-MSP-Tenant-Id`, `X-MSP-Host` (all required)
+- Headers: `X-API-Key`, `X-MSP-Tenant-Id`, `X-MSP-Host` (all required)
 
 ## Test Example
 
@@ -435,7 +446,7 @@ Connect your MCP client with:
 curl -X POST http://localhost:8080/mcp \
   -H "Content-Type: application/json" \
   -H "Accept: application/json, text/event-stream" \
-  -H "X-MSP-Token: <token>" \
+  -H "X-API-Key: <token>" \
   -H "X-MSP-Tenant-Id: <tenant-id>" \
   -H "X-MSP-Host: https://agent.mspbots.ai" \
   -d '{
