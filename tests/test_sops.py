@@ -203,30 +203,33 @@ async def test_chat_marks_a_reply_less_run_rather_than_looking_successful():
 
 
 @pytest.mark.asyncio
-async def test_list_projects_rows_and_clamps_page_size():
+async def test_list_passes_rows_through_and_clamps_page_size():
     class _ListClient(_StubClient):
         async def get(self, path, params=None):
             self.gets.append((path, params))
-            return {
-                "total": 2,
-                "list": [
-                    {
-                        "id": 7,
-                        "name": "Onboarding",
-                        "description": "New client setup",
-                        "status": "published",
-                        "source": "manual",
-                        "tags": ["ops"],
-                        "agent_id": "agt_1",
-                        "agent_live": True,
-                        "updated_at": "2026-09-01T00:00:00.000Z",
-                        "owning_seat_id": 42,
-                        "body_generated": True,
-                    }
-                ],
+            return self.response
+
+    response = {
+        "total": 2,
+        "list": [
+            {
+                "id": 7,
+                "name": "Onboarding",
+                "description": "New client setup",
+                "status": "published",
+                "source": "manual",
+                "tags": ["ops"],
+                "agent_id": "agt_1",
+                "agent_live": True,
+                "updated_at": "2026-09-01T00:00:00.000Z",
+                "owning_seat_id": 42,
+                "body_generated": True,
             }
+        ],
+    }
 
     client = _ListClient()
+    client.response = response
     payload = await _call(
         client, "mspbotsagent_list_sops", {"page_size": 5000, "search": "onb", "status": "published"}
     )
@@ -235,19 +238,9 @@ async def test_list_projects_rows_and_clamps_page_size():
         "/api/sops",
         {"search": "onb", "status": "published", "page": 1, "pageSize": 100},
     )
-    assert payload["total"] == 2
-    assert payload["count"] == 1
-    assert payload["sops"][0] == {
-        "id": 7,
-        "name": "Onboarding",
-        "description": "New client setup",
-        "status": "published",
-        "source": "manual",
-        "tags": ["ops"],
-        "agentId": "agt_1",
-        "agentLive": True,
-        "updatedAt": "2026-09-01T00:00:00.000Z",
-    }
+    # Rows go out exactly as the backend sent them: no projection, no renaming,
+    # so fields like owning_seat_id are not dropped on the way through.
+    assert payload == response
 
 
 @pytest.mark.asyncio
@@ -285,9 +278,9 @@ async def test_search_param_warns_that_a_miss_is_not_an_absence():
     assert "description" in search, "must say the description is not matched"
     assert "leave this out" in search, "must give the list-and-pick alternative"
 
-    # The reverse lookup: agent_id -> sop_id exists (every list row carries agentId),
+    # The reverse lookup: agent_id -> sop_id exists (every list row carries agent_id),
     # but only this text tells a model that, so it must not quietly disappear.
     # mspbotsagent_chat_with_sop is temporarily hidden (see tools/sops.py) and so
     # is absent from `tools` here — restore this assertion together with it.
     # sop_id = tools["mspbotsagent_chat_with_sop"].inputSchema["properties"]["sop_id"]["description"]
-    # assert "agent_id" in sop_id and "agentId" in sop_id
+    # assert "agent_id" in sop_id

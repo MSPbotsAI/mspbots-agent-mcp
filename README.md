@@ -316,9 +316,10 @@ those tools edit the **SOP draft sections** attached to an agent, while these re
 | `mspbotsagent_list_sops` | List the tenant's SOPs with pagination, returning each one's status and owning agent | `search` (fuzzy match on name only, does not search the body), `status` (`draft`/`published`), `page` (default 1), `page_size` (default 20, max 100) |
 | `mspbotsagent_chat_with_sop` 🚫 | Hold **one synchronous turn** of conversation with a SOP's agent: blocks until the whole turn finishes, then returns the reply — **currently not exposed** | `sop_id` (required), `message` (required), `thread_id` (continue the same conversation), `new_thread` (start a new one) |
 
-`mspbotsagent_list_sops` returns per row
-`id`/`name`/`description`/`status`/`source`/`tags`/`agentId`/`agentLive`/`updatedAt`.
-`agentLive` being `false` means that agent record no longer exists — the SOP is still
+`mspbotsagent_list_sops` returns the backend's `GET /api/sops` response as-is
+(`{total, list}`; every field on each row, snake_case, nothing projected away —
+e.g. `id`/`name`/`description`/`status`/`source`/`tags`/`agent_id`/`agent_live`/`updated_at`).
+`agent_live` being `false` means that agent record no longer exists — the SOP is still
 readable, but it cannot be talked to, and no parameter on either tool can bring it back.
 
 **How "the user names a SOP in their own words" turns into a `sop_id`:**
@@ -335,7 +336,7 @@ description (parameter descriptions do not count towards the 500-char limit), an
 guarded by `test_search_param_warns_that_a_miss_is_not_an_absence` in
 `tests/test_sops.py`.
 
-**When you only have an `agent_id`**: every `list_sops` row carries `agentId`, so list
+**When you only have an `agent_id`**: every `list_sops` row carries `agent_id`, so list
 them and match on it to get the `sop_id`; `mspbotsagent_get_usage_overview` rows carry
 both `sopId` and `agentId` too. Do not try to parse the agent's name — although a SOP
 agent is created as `${sop.name} #${sop.id}` and renames propagate, `PUT /api/agents/:id`

@@ -96,20 +96,6 @@ def _paused_actions(run_output: Any) -> list[dict]:
     ]
 
 
-def _sop_row(sop: dict) -> dict:
-    return {
-        "id": sop.get("id"),
-        "name": sop.get("name"),
-        "description": sop.get("description"),
-        "status": sop.get("status"),
-        "source": sop.get("source"),
-        "tags": sop.get("tags"),
-        "agentId": sop.get("agent_id"),
-        "agentLive": sop.get("agent_live"),
-        "updatedAt": sop.get("updated_at"),
-    }
-
-
 def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> None:
 
     @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
@@ -141,8 +127,8 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
         Use to find a SOP by name, or to answer "what SOPs do we have",
         "which are still drafts".
 
-        Each row's `agentId` is the agent that SOP owns. `agentLive` false
-        means that agent is gone.
+        Rows are the backend's as-is. `agent_id` is the agent the SOP
+        owns; `agent_live` false means that agent is gone.
 
         Not the SOP draft sections on an agent — those are
         mspbotsagent_get_sop_purpose and its siblings.
@@ -160,18 +146,9 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
                     "pageSize": min(page_size, _MAX_PAGE_SIZE),
                 },
             )
+            return dump_json(result)
         except AgentError as e:
             return e.to_envelope()
-
-        rows = (result or {}).get("list") or []
-        return dump_json(
-            {
-                "page": page,
-                "total": (result or {}).get("total"),
-                "count": len(rows),
-                "sops": [_sop_row(row) for row in rows if isinstance(row, dict)],
-            }
-        )
 
     # NOTE: mspbotsagent_chat_with_sop is temporarily hidden from external
     # clients: its @mcp.tool decorator below is commented out, so it no
@@ -188,7 +165,7 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
                 description=(
                     "SOP to talk to. Ids come from mspbotsagent_list_sops -- including "
                     "when all you have is an agent_id: list the SOPs and match on the "
-                    "`agentId` each row carries. Never guess an id."
+                    "`agent_id` each row carries. Never guess an id."
                 )
             ),
         ],
