@@ -44,6 +44,23 @@ def _invalid_bare_tool_ids(keys: Any) -> list[str]:
     return [k for k in keys if isinstance(k, str) and "." not in k and k not in _KNOWN_BUILTIN_TOOL_IDS]
 
 
+def _rules_missing_rubric(rules: Any) -> list[int]:
+    """Indexes of evaluation rules with no usable `rubric`.
+
+    The platform silently drops the whole `review` when a rule has no
+    rubric, yet still answers the PUT with success — so the write looked
+    fine and the read-back came back `review: null` (PRD-20168). Reject
+    here instead, before anything is sent.
+    """
+    return [
+        i
+        for i, rule in enumerate(rules or [])
+        if not isinstance(rule, dict)
+        or not isinstance(rule.get("rubric"), str)
+        or not rule["rubric"].strip()
+    ]
+
+
 async def _fetch_agent_data(client: AgentClient, agent_id: str) -> Any:
     result = await client.get(f"/api/agents/{agent_id}")
     return (result or {}).get("data", {}) or {}
@@ -292,7 +309,9 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
                 description=(
                     "List of rule objects; empty list disables self-eval. Each: "
                     '{"rubric": "...", "name": "...", "description": "...", '
-                    '"triggers": ["regex or keyword", ...]}.'
+                    '"triggers": ["regex or keyword", ...]}. `rubric` is REQUIRED '
+                    "on every rule — it is the standard the output is checked "
+                    "against; a rule without it is rejected."
                 )
             ),
         ],
@@ -309,6 +328,17 @@ def register(mcp: FastMCP, client_factory: Callable[[], AgentClient | None]) -> 
         correct") — never wait for more specifics. Empty rules list turns
         it off. Do not call this twice concurrently for the same agent.
         """
+        missing = _rules_missing_rubric(rules)
+        if missing:
+            return error_envelope(
+                "invalid_argument",
+                f"rules[{', '.join(map(str, missing))}] missing a non-empty `rubric`. "
+                "Every rule needs one — the platform discards the whole evaluation "
+                "otherwise. A short one is fine (e.g. \"checks the math is correct\"); "
+                "add it and call again.",
+                False,
+            )
+
         client = client_factory()
         if client is None:
             return NO_TOKEN

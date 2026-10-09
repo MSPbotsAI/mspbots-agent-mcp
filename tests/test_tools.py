@@ -342,3 +342,65 @@ async def test_twilio_voice_params_carry_the_real_preset_table():
 
     assert "Polly." in say_voice_desc  # the required-prefix format
     assert "voice" in say_voice_desc  # points back at the pairing requirement
+
+
+@pytest.mark.asyncio
+async def test_upsert_agent_evaluation_rejects_rules_without_rubric_before_calling_api():
+    # PRD-20168: the platform drops the whole `review` when a rule has no
+    # rubric but still answers success, so the read-back was `review: null`.
+    from mspbots_agent_mcp.tools import agents
+
+    captured = {}
+
+    class _StubClient:
+        async def get(self, path):
+            captured["called"] = path
+            return {"data": {}}
+
+        async def put(self, path, json_body):
+            captured["called"] = path
+            return {"success": True}
+
+    mcp = FastMCP(name="test")
+    agents.register(mcp, lambda: _StubClient())
+    result = await mcp.call_tool(
+        "mspbotsagent_upsert_agent_evaluation",
+        {
+            "agent_id": "a1",
+            "rules": [
+                {"rubric": "checks the math", "name": "math"},
+                {"name": "no rubric", "description": "d", "triggers": ["x"]},
+                {"rubric": "   ", "name": "blank"},
+            ],
+        },
+    )
+    text = result[0][0].text
+    assert "invalid_argument" in text
+    assert "rules[1, 2]" in text
+    assert "called" not in captured, "must reject before ever calling the API"
+
+
+@pytest.mark.asyncio
+async def test_upsert_agent_evaluation_sends_rules_with_rubric():
+    from mspbots_agent_mcp.tools import agents
+
+    captured = {}
+
+    class _StubClient:
+        async def get(self, path):
+            return {"data": {}}
+
+        async def put(self, path, json_body):
+            captured["path"] = path
+            captured["body"] = json_body
+            return {"success": True}
+
+    mcp = FastMCP(name="test")
+    agents.register(mcp, lambda: _StubClient())
+    rules = [{"rubric": "checks the math", "name": "math"}]
+    await mcp.call_tool(
+        "mspbotsagent_upsert_agent_evaluation",
+        {"agent_id": "a1", "rules": rules, "max_iterations": 1},
+    )
+    assert captured["path"] == "/api/agents/a1"
+    assert captured["body"] == {"review": {"rules": rules, "max_iterations": 1}}
